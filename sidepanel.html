@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Job Match Analyzer</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Job Match Analyzer</h1>
+    <p class="subtitle">Select a job description on any page, then capture it below.</p>
+  </header>
+
+  <section class="status-block" id="resumeStatus">
+    <div class="status-row">
+      <span class="status-dot" data-state="unknown"></span>
+      <span class="status-label">Resume</span>
+      <span class="status-value" id="resumeStatusValue">Checking…</span>
+    </div>
+    <button class="link-btn" id="openOptionsBtn">Add / edit resume</button>
+  </section>
+
+  <section class="status-block" id="nanoStatus">
+    <div class="status-row">
+      <span class="status-dot" data-state="unknown"></span>
+      <span class="status-label">On-device model</span>
+      <span class="status-value" id="nanoStatusValue">Checking…</span>
+    </div>
+    <p class="status-hint" id="nanoStatusHint"></p>
+  </section>
+
+  <section class="capture-block">
+    <button class="primary-btn" id="captureBtn">Capture selected text</button>
+    <p class="capture-hint">Highlight the job description on the page first, then click capture.</p>
+  </section>
+
+  <section class="results-block" id="resultsBlock" hidden>
+    <h2>Captured text</h2>
+    <p class="captured-meta" id="capturedMeta"></p>
+    <pre class="captured-preview" id="capturedPreview"></pre>
+  </section>
+
+  <script src="panel.js"></script>
+</body>
+</html>

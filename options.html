@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Job Match Analyzer — Resume Setup</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body class="options-page">
+  <header class="app-header">
+    <h1>Resume setup</h1>
+    <p class="subtitle">
+      Paste your resume below, one bullet or line per achievement. This is stored locally in the
+      browser — nothing is uploaded until you run an analysis.
+    </p>
+  </header>
+
+  <textarea id="resumeText" placeholder="Built CI/CD pipelines automating Salesforce deployments with PowerShell and the Salesforce CLI...&#10;Reduced pipeline failures by...&#10;Led migration of..."></textarea>
+
+  <div class="save-row">
+    <button class="primary-btn" id="saveBtn" style="width: auto;">Save resume</button>
+    <span class="bullet-count" id="bulletCount"></span>
+    <span class="save-confirm" id="saveConfirm">Saved</span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
