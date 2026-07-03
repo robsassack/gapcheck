@@ -123,6 +123,7 @@ The results UI derives its sections by filtering `matches[]`: `covered` = `statu
 - Desktop only: Windows 10/11, macOS 13+, Linux — no mobile support yet
 - ~4GB model download on first use; check progress at `chrome://on-device-internals`
 - `LanguageModel.availability()` returns `"available"`, `"downloadable"`, `"downloading"`, or `"unavailable"`
+- When availability is `"downloadable"`, call `LanguageModel.create()` from a user-initiated action (the Analyze button) to trigger the model download; attach a `downloadprogress` monitor and show progress/ready messaging in the side panel
 - `responseConstraint` accepts a JSON Schema and constrains the response to valid JSON matching that schema (not a hard guarantee of "typed" output) — use this on both passes, and still `JSON.parse` the result plus validate/sanity-check counts (e.g. array lengths) afterward
 - Each pass should create a fresh session and call `.destroy()` in a `finally` block when done
 - Distributing as a packaged extension gives stable API access without an origin trial token

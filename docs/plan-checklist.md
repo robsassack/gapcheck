@@ -52,6 +52,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [ ] Unit-test it against a few hand-built `matches[]` fixtures (all covered, all gap, mixed, empty)
 - [ ] Error handling
   - [ ] Handle `LanguageModel.availability()` states other than `"available"` gracefully (e.g. block the Analyze button, show a download-in-progress message)
+  - [ ] If availability is `"downloadable"`, trigger `LanguageModel.create()` from the Analyze button click and show `downloadprogress` in the panel
   - [ ] Handle malformed/unparseable model output without crashing the panel (retry once, then show an error state)
   - [ ] Handle empty selection / empty resume with a clear inline message instead of silently failing
 
@@ -90,7 +91,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 - [ ] Confirm `chrome://on-device-internals` download-progress messaging is surfaced somewhere if the model isn't downloaded yet
 - [ ] Review copy/wording on empty states, error states, and the availability-status indicator
 - [ ] Confirm no network calls are made anywhere in the extension (matches the "nothing leaves the browser" claim)
-- [ ] Write/update the extension's README or store listing description
+- [x] Write/update the extension's README or store listing description
 - [ ] Final pass on `// @ts-check` + JSDoc types — no type errors across `nano.js` and panel scripts
 
 ---
