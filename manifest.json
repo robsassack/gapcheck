@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Job Match Analyzer",
+  "name": "GapCheck",
   "version": "0.1.0",
   "description": "Compares a selected job posting against your resume using on-device AI and semantic similarity.",
   "permissions": ["sidePanel", "storage", "activeTab", "scripting"],
   "action": {
-    "default_title": "Job Match Analyzer",
+    "default_title": "GapCheck",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
