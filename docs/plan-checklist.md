@@ -19,17 +19,17 @@ A phase-by-phase build checklist derived from `gapcheck-plan.md`. Check items of
 
 Pin these down on paper/in a schema file first — retrofitting after the pipeline is wired up is more expensive than deciding now.
 
-- [ ] Write the Pass 1 JSON Schema: `{ requirements: string[] }`
-  - [ ] Set `maxItems` on `requirements[]` (settle on a concrete number, e.g. 15–20)
-  - [ ] Draft the system prompt instruction to pair with the cap (e.g. "return the most important N requirements")
-- [ ] Write the Pass 2 JSON Schema: `{ matches: Match[], summary: string }`
-  - [ ] Define `Match` shape: `{ requirement: string, status: "covered" | "partial" | "gap", matchedBullets: string[], severity: "low" | "medium" | "high" | null }`
-  - [ ] Confirm `matchedBullets` and `severity` are present (not conditionally omitted) on every item, per `responseConstraint`'s need for a consistent shape
-  - [ ] Decide the `severity` scale and confirm it applies to `partial` as well as `gap`
-  - [ ] Draft the system prompt instruction: "return one `matches` item for each provided requirement, in the same order" (JSON Schema alone won't enforce this one-to-one correspondence)
-- [ ] Pin the v1 scoring formula as a code-level constant/function, separate from the prompt work:
-  - [ ] `covered = 1`, `partial = 0.5`, `gap = 0`, averaged and expressed as a percentage
-  - [ ] Note severity-weighting as an explicit v2 stretch, not a v1 requirement
+- [x] Write the Pass 1 JSON Schema: `{ requirements: string[] }`
+  - [x] Set `maxItems` on `requirements[]` (`20`)
+  - [x] Draft the system prompt instruction to pair with the cap: return at most 20 requirements, prioritizing the most important concrete requirements if more are present
+- [x] Write the Pass 2 JSON Schema: `{ matches: Match[], summary: string }`
+  - [x] Define `Match` shape: `{ requirement: string, status: "covered" | "partial" | "gap", matchedBullets: string[], severity: "low" | "medium" | "high" | null }`
+  - [x] Confirm `matchedBullets` and `severity` are present (not conditionally omitted) on every item, per `responseConstraint`'s need for a consistent shape
+  - [x] Decide the `severity` scale and confirm it applies to `partial` as well as `gap`
+  - [x] Draft the system prompt instruction: "return one `matches` item for each provided requirement, in the same order" (JSON Schema alone won't enforce this one-to-one correspondence)
+- [x] Pin the v1 scoring formula as a code-level constant/function, separate from the prompt work:
+  - [x] `covered = 1`, `partial = 0.5`, `gap = 0`, averaged and expressed as a percentage
+  - [x] Note severity-weighting as an explicit v2 stretch, not a v1 requirement
 
 ---
 

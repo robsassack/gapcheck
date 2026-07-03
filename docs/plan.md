@@ -96,14 +96,14 @@ score = average over all matches of:
   gap     → 0
 ```
 
-Expressed as a percentage (e.g. `overallScore = Math.round(sum / matches.length * 100)`). This is a v1 baseline — weighting by `severity` (e.g. a `gap` on a high-severity requirement counting more than a low-severity one) is a reasonable v2 refinement, but isn't required to ship.
+Expressed as a percentage (e.g. `overallScore = Math.round(sum / matches.length * 100)`). This is pinned in code as `MATCH_STATUS_SCORES` plus `computeOverallScore(matches)`. Severity weighting is an explicit v2 stretch, not a v1 requirement.
 
 **Schema details to pin down before building:**
 - `matchedBullets` is a `string[]`, not a single nullable string — a requirement may be supported by two weaker bullets together, and an empty array is cleaner to handle than `null`.
-- `severity` should be a nullable/optional field present on every item (not conditionally present), since the JSON Schema passed to `responseConstraint` wants a consistent shape across all array items.
-- Decide the `severity` scale up front (e.g. `low | medium | high`) and apply it to `partial` matches too, not just `gap` — a partial match on a "must-have" requirement is more significant than a partial on a "nice-to-have."
-- Pass 1's schema should set `maxItems` on the `requirements[]` array to keep Pass 2's input bounded.
-- Pass 2's schema should require exactly one `matches` item per requirement where possible; the system prompt should also explicitly instruct the model to "return one `matches` item for each provided requirement, in the same order," since JSON Schema alone can constrain shape but not this kind of one-to-one correspondence.
+- `severity` should be a nullable field present on every item (not conditionally present), since the JSON Schema passed to `responseConstraint` wants a consistent shape across all array items. Use `null` for covered requirements.
+- The severity scale is pinned as `low | medium | high`, and applies to `partial` matches as well as `gap` matches — a partial match on a "must-have" requirement is more significant than a partial on a "nice-to-have."
+- Pass 1's schema should set `maxItems: 20` on the `requirements[]` array to keep Pass 2's input bounded.
+- Pass 2's schema caps `matches[]` at 20 to mirror Pass 1's requirement cap. The system prompt explicitly instructs the model to "return one `matches` item for each provided requirement, in the same order," since JSON Schema alone can constrain shape but not this kind of one-to-one correspondence.
 
 The results UI derives its sections by filtering `matches[]`: `covered` = `status === "covered"`, `gaps` = `status === "gap"`, and `partial` gets its own third visual bucket rather than being folded into either of the other two.
 
@@ -159,7 +159,7 @@ Scaffold is complete and loadable as an unpacked extension. What works:
 
 ## Open Questions / Things to Pressure-Test Before Building
 
-1. **Confirm the exact `maxItems` value for Pass 1's `requirements[]` schema.** The plan calls for capping the array via `maxItems` (see schema details above), but the concrete number isn't pinned yet — a verbose posting could still push Nano toward over-extraction (splitting a single compound requirement into several lines) even with a cap in place. Settle on a specific value (e.g. 15–20) and pair it with an explicit instruction like "the most important N requirements."
+1. **Pass 1 max requirement count is pinned at 20.** The schema uses `maxItems: 20` on `requirements[]`, paired with a system prompt instruction to return at most 20 requirements and prioritize the most important concrete requirements if more are present.
 
 2. **Pass 2 input budget isn't just `requirements[]`.** `resumeBullets[]` is a second variable-length input competing for the same ~2K token window. A resume with 20–30 bullets (common for someone with a decade of experience) is worth sanity-checking against total token count, not just a short-resume case.
 
