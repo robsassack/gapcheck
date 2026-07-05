@@ -107,7 +107,8 @@ captureBtn.addEventListener("click", async () => {
     resultsBlock.hidden = false;
   } catch (err) {
     console.error(err);
-    capturedMeta.textContent = "Couldn't read the page selection — see console for details.";
+    capturedMeta.textContent =
+      "Couldn't read the page selection. Try a normal webpage; Chrome blocks capture on internal and extension pages.";
     capturedPreview.textContent = "";
     resultsBlock.hidden = false;
   } finally {

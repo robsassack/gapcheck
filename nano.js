@@ -1,6 +1,7 @@
 // @ts-check
 
 const PASS_1_MAX_REQUIREMENTS = 20;
+const PASS_1_JOB_TEXT_CHAR_LIMIT = 6000;
 const MATCH_STATUSES = Object.freeze(["covered", "partial", "gap"]);
 const MATCH_SEVERITIES = Object.freeze(["low", "medium", "high"]);
 const MATCH_STATUS_SCORES = Object.freeze({
@@ -31,6 +32,106 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
   required: ["requirements"],
   additionalProperties: false,
 });
+
+/**
+ * @typedef {object} Pass1ExtractionResult
+ * @property {string[]} requirements
+ */
+
+/**
+ * @typedef {object} LanguageModelSession
+ * @property {(input: string, options?: { responseConstraint?: object }) => Promise<string>} prompt
+ * @property {() => void} destroy
+ */
+
+/**
+ * @typedef {object} LanguageModelGlobal
+ * @property {(options?: { initialPrompts?: { role: "system" | "user" | "assistant", content: string }[] }) => Promise<LanguageModelSession>} create
+ */
+
+/**
+ * @typedef {Window & {
+ *   GapcheckNano?: {
+ *     extractRequirementsFromJobText: typeof extractRequirementsFromJobText,
+ *     computeOverallScore: typeof computeOverallScore
+ *   }
+ * }} GapcheckWindow
+ */
+
+/**
+ * @param {string} jobText
+ * @returns {string}
+ */
+function truncateJobTextForPass1(jobText) {
+  return jobText.trim().slice(0, PASS_1_JOB_TEXT_CHAR_LIMIT);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {asserts value is Pass1ExtractionResult}
+ */
+function assertValidPass1ExtractionResult(value) {
+  if (!value || typeof value !== "object") {
+    throw new Error("Pass 1 response did not include a requirements array.");
+  }
+
+  const result = /** @type {{ requirements?: unknown }} */ (value);
+
+  if (!Array.isArray(result.requirements)) {
+    throw new Error("Pass 1 response did not include a requirements array.");
+  }
+
+  if (result.requirements.length > PASS_1_MAX_REQUIREMENTS) {
+    throw new Error(`Pass 1 returned more than ${PASS_1_MAX_REQUIREMENTS} requirements.`);
+  }
+
+  const hasInvalidRequirement = result.requirements.some((requirement) => {
+    return typeof requirement !== "string" || requirement.trim().length === 0;
+  });
+
+  if (hasInvalidRequirement) {
+    throw new Error("Pass 1 returned an invalid requirement.");
+  }
+}
+
+/**
+ * @param {string} jobText
+ * @returns {Promise<string[]>}
+ */
+async function extractRequirementsFromJobText(jobText) {
+  if (typeof LanguageModel === "undefined") {
+    throw new Error("LanguageModel is not available in this browser.");
+  }
+
+  const truncatedJobText = truncateJobTextForPass1(jobText);
+
+  /** @type {LanguageModelSession | null} */
+  let session = null;
+
+  try {
+    session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
+      initialPrompts: [
+        {
+          role: "system",
+          content: PASS_1_EXTRACTION_SYSTEM_PROMPT,
+        },
+      ],
+    });
+
+    const rawResult = await session.prompt(truncatedJobText, {
+      responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
+    });
+    const parsedResult = JSON.parse(rawResult);
+
+    assertValidPass1ExtractionResult(parsedResult);
+
+    return parsedResult.requirements.map((requirement) => requirement.trim());
+  } finally {
+    if (session) {
+      session.destroy();
+    }
+  }
+}
 
 const PASS_2_ANALYSIS_SYSTEM_PROMPT = [
   "Compare the provided job requirements against the provided resume bullets.",
@@ -96,3 +197,8 @@ function computeOverallScore(matches) {
 
   return Math.round((total / matches.length) * 100);
 }
+
+(/** @type {GapcheckWindow} */ (window)).GapcheckNano = Object.freeze({
+  extractRequirementsFromJobText,
+  computeOverallScore,
+});

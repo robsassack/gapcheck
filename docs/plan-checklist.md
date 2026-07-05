@@ -35,12 +35,12 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ## Phase 2 — `nano.js` Pipeline
 
-- [ ] Pass 1 (extraction)
-  - [ ] Truncate captured job text to ≤ 6,000 chars
-  - [ ] Create fresh `LanguageModel` session with extraction system prompt
-  - [ ] Call `.prompt()` with `responseConstraint` set to the Pass 1 schema
-  - [ ] `JSON.parse` the result; sanity-check it's an array within the `maxItems` bound
-  - [ ] `.destroy()` the session in a `finally` block
+- [x] Pass 1 (extraction)
+  - [x] Truncate captured job text to ≤ 6,000 chars
+  - [x] Create fresh `LanguageModel` session with extraction system prompt
+  - [x] Call `.prompt()` with `responseConstraint` set to the Pass 1 schema
+  - [x] `JSON.parse` the result; sanity-check it's an array within the `maxItems` bound
+  - [x] `.destroy()` the session in a `finally` block
 - [ ] Pass 2 (analysis)
   - [ ] Create fresh `LanguageModel` session with analysis system prompt
   - [ ] Pass in `requirements[]` (from Pass 1) + `resumeBullets[]` (from `chrome.storage.local`)
