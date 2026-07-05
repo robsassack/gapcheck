@@ -47,9 +47,9 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Call `.prompt()` with `responseConstraint` set to the Pass 2 schema
   - [x] `JSON.parse` the result; sanity-check `matches.length === requirements.length`
   - [x] `.destroy()` the session in a `finally` block
-- [ ] Scoring
-  - [ ] Implement the pinned scoring function as a pure function taking `matches[]` and returning `overallScore`
-  - [ ] Unit-test it against a few hand-built `matches[]` fixtures (all covered, all gap, mixed, empty)
+- [x] Scoring
+  - [x] Implement the pinned scoring function as a pure function taking `matches[]` and returning `overallScore`
+  - [x] Unit-test it against a few hand-built `matches[]` fixtures (all covered, all gap, mixed, empty)
 - [ ] Error handling
   - [ ] Handle `LanguageModel.availability()` states other than `"available"` gracefully (e.g. block the Analyze button, show a download-in-progress message)
   - [ ] If availability is `"downloadable"`, trigger `LanguageModel.create()` from the Analyze button click and show `downloadprogress` in the panel
