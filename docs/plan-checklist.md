@@ -49,18 +49,21 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] `.destroy()` the session in a `finally` block
 - [x] Scoring
   - [x] Implement the pinned scoring function as a pure function taking `matches[]` and returning `overallScore`
-  - [x] Unit-test it against a few hand-built `matches[]` fixtures (all covered, all gap, mixed, empty)
-- [ ] Error handling
-  - [ ] Handle `LanguageModel.availability()` states other than `"available"` gracefully (e.g. block the Analyze button, show a download-in-progress message)
-  - [ ] If availability is `"downloadable"`, trigger `LanguageModel.create()` from the Analyze button click and show `downloadprogress` in the panel
-  - [ ] Handle malformed/unparseable model output without crashing the panel (retry once, then show an error state)
-  - [ ] Handle empty selection / empty resume with a clear inline message instead of silently failing
+  - [x] Add a browser-run scoring test fixture against hand-built `matches[]` cases (all covered, all gap, mixed, empty)
+- [x] Error handling
+  - [x] Handle `LanguageModel.availability()` states other than `"available"` gracefully (e.g. block the analyze action, show a download-in-progress message)
+  - [x] If availability is `"downloadable"`, trigger `LanguageModel.create()` from the analyze action and show `downloadprogress` in the panel
+  - [x] Handle malformed/unparseable model output without crashing the panel (retry once, then show an error state)
+  - [x] Handle empty selection / empty resume with a clear inline message instead of silently failing
 
 ---
 
 ## Phase 3 — Results UI
 
-- [ ] Wire an "Analyze" button into the side panel that triggers the two-pass pipeline
+- [ ] Replace the separate capture/analyze testing flow with one primary "Analyze selected text" action
+  - [ ] Read the current page selection from the active tab
+  - [ ] Preview the captured text in the collapsible dropdown
+  - [ ] Trigger Pass 1, Pass 2, and scoring from the same click
 - [ ] Loading state while Pass 1 / Pass 2 are running (these are on-device calls and won't be instant)
 - [ ] Render `overallScore` prominently
 - [ ] Render three filtered sections from `matches[]`:

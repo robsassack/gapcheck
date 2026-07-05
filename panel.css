@@ -136,6 +136,43 @@ body {
   margin-top: 6px;
 }
 
+.analysis-block {
+  margin-top: 12px;
+}
+
+.analysis-status {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+.analysis-status[data-state="ok"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.analysis-status[data-state="warn"] {
+  color: var(--warn);
+}
+
+.analysis-status[data-state="error"] {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.analysis-output {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin: 10px 0 0;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
 .results-block {
   margin-top: 16px;
 }

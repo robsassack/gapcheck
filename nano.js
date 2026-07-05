@@ -69,12 +69,17 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
 
 /**
  * @typedef {object} LanguageModelGlobal
- * @property {(options?: { initialPrompts?: { role: "system" | "user" | "assistant", content: string }[] }) => Promise<LanguageModelSession>} create
+ * @property {(options?: {
+ *   initialPrompts?: { role: "system" | "user" | "assistant", content: string }[],
+ *   monitor?: (monitor: EventTarget) => void
+ * }) => Promise<LanguageModelSession>} create
+ * @property {() => Promise<"available" | "downloadable" | "downloading" | "unavailable">} availability
  */
 
 /**
  * @typedef {Window & {
  *   GapcheckNano?: {
+ *     ensureLanguageModelReady: typeof ensureLanguageModelReady,
  *     extractRequirementsFromJobText: typeof extractRequirementsFromJobText,
  *     analyzeRequirementsWithSavedResume: typeof analyzeRequirementsWithSavedResume,
  *     computeOverallScore: typeof computeOverallScore,
@@ -115,6 +120,126 @@ function debugLog(label, data) {
 }
 
 /**
+ * @param {string} message
+ * @returns {Error}
+ */
+function createModelOutputError(message) {
+  const error = new Error(message);
+  error.name = "GapcheckModelOutputError";
+  return error;
+}
+
+/**
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isModelOutputError(error) {
+  return error instanceof SyntaxError || (error instanceof Error && error.name === "GapcheckModelOutputError");
+}
+
+/**
+ * @template T
+ * @param {() => Promise<T>} operation
+ * @param {string} label
+ * @returns {Promise<T>}
+ */
+async function withModelOutputRetry(operation, label) {
+  try {
+    return await operation();
+  } catch (err) {
+    if (!isModelOutputError(err)) {
+      throw err;
+    }
+
+    debugLog(`${label} output invalid; retrying once`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    return await operation();
+  } catch (err) {
+    if (isModelOutputError(err)) {
+      throw new Error(`${label} returned malformed output after retry.`);
+    }
+
+    throw err;
+  }
+}
+
+/**
+ * @param {string} rawResult
+ * @param {string} label
+ * @returns {unknown}
+ */
+function parseModelJson(rawResult, label) {
+  try {
+    return JSON.parse(rawResult);
+  } catch (err) {
+    throw createModelOutputError(`${label} returned invalid JSON.`);
+  }
+}
+
+/**
+ * @param {number} loaded
+ * @returns {number}
+ */
+function normalizeDownloadProgress(loaded) {
+  if (!Number.isFinite(loaded)) {
+    return 0;
+  }
+
+  if (loaded > 1) {
+    return Math.max(0, Math.min(100, loaded));
+  }
+
+  return Math.max(0, Math.min(100, loaded * 100));
+}
+
+/**
+ * @param {(progressPercent: number) => void} [onDownloadProgress]
+ * @returns {Promise<void>}
+ */
+async function ensureLanguageModelReady(onDownloadProgress) {
+  if (typeof LanguageModel === "undefined") {
+    throw new Error("LanguageModel is not available in this browser.");
+  }
+
+  const languageModel = /** @type {LanguageModelGlobal} */ (LanguageModel);
+  const availability = await languageModel.availability();
+
+  if (availability === "available") {
+    return;
+  }
+
+  if (availability === "unavailable") {
+    throw new Error("This device or Chrome build does not support the on-device model.");
+  }
+
+  /** @type {LanguageModelSession | null} */
+  let session = null;
+
+  try {
+    session = await languageModel.create({
+      monitor(monitor) {
+        if (!onDownloadProgress) {
+          return;
+        }
+
+        monitor.addEventListener("downloadprogress", (event) => {
+          const progressEvent = /** @type {ProgressEvent} */ (event);
+          onDownloadProgress(normalizeDownloadProgress(progressEvent.loaded));
+        });
+      },
+    });
+  } finally {
+    if (session) {
+      session.destroy();
+    }
+  }
+}
+
+/**
  * @param {string} jobText
  * @returns {string}
  */
@@ -128,17 +253,17 @@ function truncateJobTextForPass1(jobText) {
  */
 function assertValidPass1ExtractionResult(value) {
   if (!value || typeof value !== "object") {
-    throw new Error("Pass 1 response did not include a requirements array.");
+    throw createModelOutputError("Pass 1 response did not include a requirements array.");
   }
 
   const result = /** @type {{ requirements?: unknown }} */ (value);
 
   if (!Array.isArray(result.requirements)) {
-    throw new Error("Pass 1 response did not include a requirements array.");
+    throw createModelOutputError("Pass 1 response did not include a requirements array.");
   }
 
   if (result.requirements.length > PASS_1_MAX_REQUIREMENTS) {
-    throw new Error(`Pass 1 returned more than ${PASS_1_MAX_REQUIREMENTS} requirements.`);
+    throw createModelOutputError(`Pass 1 returned more than ${PASS_1_MAX_REQUIREMENTS} requirements.`);
   }
 
   const hasInvalidRequirement = result.requirements.some((requirement) => {
@@ -146,7 +271,7 @@ function assertValidPass1ExtractionResult(value) {
   });
 
   if (hasInvalidRequirement) {
-    throw new Error("Pass 1 returned an invalid requirement.");
+    throw createModelOutputError("Pass 1 returned an invalid requirement.");
   }
 }
 
@@ -155,48 +280,50 @@ function assertValidPass1ExtractionResult(value) {
  * @returns {Promise<string[]>}
  */
 async function extractRequirementsFromJobText(jobText) {
-  if (typeof LanguageModel === "undefined") {
-    throw new Error("LanguageModel is not available in this browser.");
-  }
-
-  const truncatedJobText = truncateJobTextForPass1(jobText);
-
-  debugLog("Pass 1 input", {
-    originalCharCount: jobText.length,
-    truncatedCharCount: truncatedJobText.length,
-    truncated: jobText.trim().length > PASS_1_JOB_TEXT_CHAR_LIMIT,
-    text: truncatedJobText,
-  });
-
-  /** @type {LanguageModelSession | null} */
-  let session = null;
-
-  try {
-    session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
-      initialPrompts: [
-        {
-          role: "system",
-          content: PASS_1_EXTRACTION_SYSTEM_PROMPT,
-        },
-      ],
-    });
-
-    const rawResult = await session.prompt(truncatedJobText, {
-      responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
-    });
-    const parsedResult = JSON.parse(rawResult);
-
-    assertValidPass1ExtractionResult(parsedResult);
-
-    const requirements = parsedResult.requirements.map((requirement) => requirement.trim());
-    debugLog("Pass 1 requirements", requirements);
-
-    return requirements;
-  } finally {
-    if (session) {
-      session.destroy();
+  return withModelOutputRetry(async () => {
+    if (typeof LanguageModel === "undefined") {
+      throw new Error("LanguageModel is not available in this browser.");
     }
-  }
+
+    const truncatedJobText = truncateJobTextForPass1(jobText);
+
+    debugLog("Pass 1 input", {
+      originalCharCount: jobText.length,
+      truncatedCharCount: truncatedJobText.length,
+      truncated: jobText.trim().length > PASS_1_JOB_TEXT_CHAR_LIMIT,
+      text: truncatedJobText,
+    });
+
+    /** @type {LanguageModelSession | null} */
+    let session = null;
+
+    try {
+      session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
+        initialPrompts: [
+          {
+            role: "system",
+            content: PASS_1_EXTRACTION_SYSTEM_PROMPT,
+          },
+        ],
+      });
+
+      const rawResult = await session.prompt(truncatedJobText, {
+        responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
+      });
+      const parsedResult = parseModelJson(rawResult, "Pass 1");
+
+      assertValidPass1ExtractionResult(parsedResult);
+
+      const requirements = parsedResult.requirements.map((requirement) => requirement.trim());
+      debugLog("Pass 1 requirements", requirements);
+
+      return requirements;
+    } finally {
+      if (session) {
+        session.destroy();
+      }
+    }
+  }, "Pass 1");
 }
 
 const PASS_2_ANALYSIS_SYSTEM_PROMPT = [
@@ -315,26 +442,26 @@ async function getSavedResumeBullets() {
  */
 function assertValidPass2AnalysisResult(value, requirements) {
   if (!value || typeof value !== "object") {
-    throw new Error("Pass 2 response was not an object.");
+    throw createModelOutputError("Pass 2 response was not an object.");
   }
 
   const result = /** @type {{ matches?: unknown, summary?: unknown }} */ (value);
 
   if (!Array.isArray(result.matches)) {
-    throw new Error("Pass 2 response did not include a matches array.");
+    throw createModelOutputError("Pass 2 response did not include a matches array.");
   }
 
   if (result.matches.length !== requirements.length) {
-    throw new Error("Pass 2 returned a different number of matches than requirements.");
+    throw createModelOutputError("Pass 2 returned a different number of matches than requirements.");
   }
 
   if (typeof result.summary !== "string") {
-    throw new Error("Pass 2 response did not include a summary string.");
+    throw createModelOutputError("Pass 2 response did not include a summary string.");
   }
 
   result.matches.forEach((match, index) => {
     if (!match || typeof match !== "object") {
-      throw new Error(`Pass 2 match ${index + 1} was not an object.`);
+      throw createModelOutputError(`Pass 2 match ${index + 1} was not an object.`);
     }
 
     const candidate = /** @type {{ requirement?: unknown, status?: unknown, matchedBullets?: unknown, severity?: unknown }} */ (match);
@@ -343,11 +470,11 @@ function assertValidPass2AnalysisResult(value, requirements) {
       typeof candidate.status !== "string" ||
       !MATCH_STATUSES.includes(/** @type {MatchStatus} */ (candidate.status))
     ) {
-      throw new Error(`Pass 2 match ${index + 1} had an invalid status.`);
+      throw createModelOutputError(`Pass 2 match ${index + 1} had an invalid status.`);
     }
 
     if (!Array.isArray(candidate.matchedBullets)) {
-      throw new Error(`Pass 2 match ${index + 1} did not include matchedBullets.`);
+      throw createModelOutputError(`Pass 2 match ${index + 1} did not include matchedBullets.`);
     }
 
     const hasInvalidBullet = candidate.matchedBullets.some((bullet) => {
@@ -355,7 +482,7 @@ function assertValidPass2AnalysisResult(value, requirements) {
     });
 
     if (hasInvalidBullet) {
-      throw new Error(`Pass 2 match ${index + 1} included an invalid matched bullet.`);
+      throw createModelOutputError(`Pass 2 match ${index + 1} included an invalid matched bullet.`);
     }
 
     const validSeverity =
@@ -364,7 +491,7 @@ function assertValidPass2AnalysisResult(value, requirements) {
         MATCH_SEVERITIES.includes(/** @type {MatchSeverity} */ (candidate.severity)));
 
     if (!validSeverity) {
-      throw new Error(`Pass 2 match ${index + 1} had an invalid severity.`);
+      throw createModelOutputError(`Pass 2 match ${index + 1} had an invalid severity.`);
     }
   });
 }
@@ -374,71 +501,73 @@ function assertValidPass2AnalysisResult(value, requirements) {
  * @returns {Promise<Pass2AnalysisResult>}
  */
 async function analyzeRequirementsWithSavedResume(requirements) {
-  if (typeof LanguageModel === "undefined") {
-    throw new Error("LanguageModel is not available in this browser.");
-  }
+  return withModelOutputRetry(async () => {
+    if (typeof LanguageModel === "undefined") {
+      throw new Error("LanguageModel is not available in this browser.");
+    }
 
-  const normalizedRequirements = validatePromptStringArray(
-    requirements,
-    "Requirements",
-    PASS_1_MAX_REQUIREMENTS
-  );
-  const resumeBullets = await getSavedResumeBullets();
-  const promptInput = JSON.stringify(
-    {
+    const normalizedRequirements = validatePromptStringArray(
+      requirements,
+      "Requirements",
+      PASS_1_MAX_REQUIREMENTS
+    );
+    const resumeBullets = await getSavedResumeBullets();
+    const promptInput = JSON.stringify(
+      {
+        requirements: normalizedRequirements,
+        resumeBullets,
+      },
+      null,
+      2
+    );
+
+    debugLog("Pass 2 input", {
       requirements: normalizedRequirements,
       resumeBullets,
-    },
-    null,
-    2
-  );
-
-  debugLog("Pass 2 input", {
-    requirements: normalizedRequirements,
-    resumeBullets,
-    promptInput,
-  });
-
-  /** @type {LanguageModelSession | null} */
-  let session = null;
-
-  try {
-    session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
-      initialPrompts: [
-        {
-          role: "system",
-          content: PASS_2_ANALYSIS_SYSTEM_PROMPT,
-        },
-      ],
+      promptInput,
     });
 
-    const rawResult = await session.prompt(promptInput, {
-      responseConstraint: PASS_2_ANALYSIS_SCHEMA,
-    });
-    const parsedResult = JSON.parse(rawResult);
+    /** @type {LanguageModelSession | null} */
+    let session = null;
 
-    assertValidPass2AnalysisResult(parsedResult, normalizedRequirements);
+    try {
+      session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
+        initialPrompts: [
+          {
+            role: "system",
+            content: PASS_2_ANALYSIS_SYSTEM_PROMPT,
+          },
+        ],
+      });
 
-    const analysis = {
-      matches: parsedResult.matches.map((match, index) => {
-        return {
-          requirement: normalizedRequirements[index],
-          status: match.status,
-          matchedBullets: match.matchedBullets.map((bullet) => bullet.trim()),
-          severity: match.severity,
-        };
-      }),
-      summary: parsedResult.summary.trim(),
-    };
+      const rawResult = await session.prompt(promptInput, {
+        responseConstraint: PASS_2_ANALYSIS_SCHEMA,
+      });
+      const parsedResult = parseModelJson(rawResult, "Pass 2");
 
-    debugLog("Pass 2 analysis", analysis);
+      assertValidPass2AnalysisResult(parsedResult, normalizedRequirements);
 
-    return analysis;
-  } finally {
-    if (session) {
-      session.destroy();
+      const analysis = {
+        matches: parsedResult.matches.map((match, index) => {
+          return {
+            requirement: normalizedRequirements[index],
+            status: match.status,
+            matchedBullets: match.matchedBullets.map((bullet) => bullet.trim()),
+            severity: match.severity,
+          };
+        }),
+        summary: parsedResult.summary.trim(),
+      };
+
+      debugLog("Pass 2 analysis", analysis);
+
+      return analysis;
+    } finally {
+      if (session) {
+        session.destroy();
+      }
     }
-  }
+  }, "Pass 2");
 }
 
 /**
@@ -458,6 +587,7 @@ function computeOverallScore(matches) {
 }
 
 (/** @type {GapcheckWindow} */ (window)).GapcheckNano = Object.freeze({
+  ensureLanguageModelReady,
   extractRequirementsFromJobText,
   analyzeRequirementsWithSavedResume,
   computeOverallScore,

@@ -145,17 +145,19 @@ The results UI derives its sections by filtering `matches[]`: `covered` = `statu
 
 ## Current State
 
-Scaffold is complete and loadable as an unpacked extension. What works:
+Scaffold and the Phase 2 Nano pipeline are implemented in the unpacked extension. What works:
 
 - Side panel opens on toolbar icon click (`sidePanel.setPanelBehavior`)
 - `LanguageModel.availability()` check with human-readable status and dot indicator in the panel
 - Resume paste/save/bullet-split on the options page (`chrome.storage.local`)
 - "Capture selected text" grabs `window.getSelection()` from the active tab and previews it
 - Storage change listener keeps the panel's resume status in sync with the options page
+- `nano.js` runs the two-pass Prompt API pipeline: Pass 1 extracts requirements, Pass 2 compares them to saved resume bullets, and code computes `overallScore`
+- The side panel has a separate Analyze action that checks model availability, can trigger the model download, shows download progress/status, and renders a JSON debug-style analysis result
 
-**Nothing is built yet:** no Nano `.create()` or `.prompt()` calls, no two-pass pipeline, no results UI.
+**Still pending:** Phase 3 results UI. The current analysis output is intentionally plain JSON while the product UI is still being built.
 
-**Next step:** Build `nano.js` — the two-pass pipeline — and wire in an Analyze button to the side panel.
+**Next step:** Replace the separate capture/analyze testing flow with one primary "Analyze selected text" action and render the score, covered, partial, gaps, and summary sections.
 
 ## Open Questions / Things to Pressure-Test Before Building
 
