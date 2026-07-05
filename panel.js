@@ -8,6 +8,7 @@ const nanoStatusHint = document.getElementById("nanoStatusHint");
 
 const captureBtn = document.getElementById("captureBtn");
 const resultsBlock = document.getElementById("resultsBlock");
+const capturedDetails = document.getElementById("capturedDetails");
 const capturedMeta = document.getElementById("capturedMeta");
 const capturedPreview = document.getElementById("capturedPreview");
 
@@ -110,12 +111,14 @@ captureBtn.addEventListener("click", async () => {
     if (!text) {
       capturedMeta.textContent = "No text was selected on the page.";
       capturedPreview.textContent = "";
+      capturedDetails.open = false;
       resultsBlock.hidden = false;
       return;
     }
 
     capturedMeta.textContent = `${text.length} characters captured`;
     capturedPreview.textContent = text;
+    capturedDetails.open = false;
     resultsBlock.hidden = false;
     panelDebugLog("Captured selected text", {
       charCount: text.length,
@@ -126,6 +129,7 @@ captureBtn.addEventListener("click", async () => {
     capturedMeta.textContent =
       "Couldn't read the page selection. Try a normal webpage; Chrome blocks capture on internal and extension pages.";
     capturedPreview.textContent = "";
+    capturedDetails.open = false;
     resultsBlock.hidden = false;
   } finally {
     captureBtn.disabled = false;
