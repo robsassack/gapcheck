@@ -60,18 +60,18 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ## Phase 3 — Results UI
 
-- [ ] Replace the separate capture/analyze testing flow with one primary "Analyze selected text" action
-  - [ ] Read the current page selection from the active tab
-  - [ ] Preview the captured text in the collapsible dropdown
-  - [ ] Trigger Pass 1, Pass 2, and scoring from the same click
-- [ ] Loading state while Pass 1 / Pass 2 are running (these are on-device calls and won't be instant)
-- [ ] Render `overallScore` prominently
-- [ ] Render three filtered sections from `matches[]`:
-  - [ ] Covered (`status === "covered"`) — show `matchedBullets`
-  - [ ] Partial (`status === "partial"`) — show `matchedBullets` + `severity`
-  - [ ] Gaps (`status === "gap"`) — show `severity`
-- [ ] Render `summary` text
-- [ ] Empty-state handling (no job text captured yet, no resume saved yet)
+- [x] Replace the separate capture/analyze testing flow with one primary "Analyze selected text" action
+  - [x] Read the current page selection from the active tab
+  - [x] Preview the captured text in the collapsible dropdown
+  - [x] Trigger Pass 1, Pass 2, and scoring from the same click
+- [x] Loading state while Pass 1 / Pass 2 are running (these are on-device calls and won't be instant)
+- [x] Render `overallScore` prominently
+- [x] Render three filtered sections from `matches[]`:
+  - [x] Covered (`status === "covered"`) — show `matchedBullets`
+  - [x] Partial (`status === "partial"`) — show `matchedBullets` + `severity`
+  - [x] Gaps (`status === "gap"`) — show `severity`
+- [x] Render `summary` text
+- [x] Empty-state handling (no job text captured yet, no resume saved yet)
 
 ---
 

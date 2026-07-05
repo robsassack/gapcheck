@@ -8,7 +8,7 @@
 <body>
   <header class="app-header">
     <h1>GapCheck</h1>
-    <p class="subtitle">Select a job description on any page, then capture it below.</p>
+    <p class="subtitle">Select a job description on any page, then analyze it below.</p>
   </header>
 
   <section class="status-block" id="resumeStatus">
@@ -29,18 +29,60 @@
     <p class="status-hint" id="nanoStatusHint"></p>
   </section>
 
-  <section class="capture-block">
-    <button class="primary-btn" id="captureBtn">Capture selected text</button>
-    <p class="capture-hint">Highlight the job description on the page first, then click capture.</p>
-  </section>
-
   <section class="analysis-block">
     <button class="primary-btn" id="analyzeBtn" disabled>Analyze selected text</button>
-    <p class="analysis-status" id="analysisStatus">Capture job text and save a resume before analyzing.</p>
-    <pre class="analysis-output" id="analysisOutput" hidden></pre>
+    <p class="capture-hint">Highlight the job description on the page first.</p>
+    <p class="analysis-status" id="analysisStatus">Save a resume before analyzing.</p>
+    <div class="analysis-progress" id="analysisProgress" hidden>
+      <span class="progress-spinner" aria-hidden="true"></span>
+      <div class="progress-copy">
+        <span class="progress-title" id="progressTitle">Analyzing selected text</span>
+        <span class="progress-step" id="progressStep">Starting…</span>
+      </div>
+    </div>
   </section>
 
   <section class="results-block" id="resultsBlock" hidden>
+    <div class="result-empty" id="resultEmpty">
+      <strong id="emptyStateTitle">Ready for a job description</strong>
+      <span id="emptyStateMessage">Highlight the job description on the page, then run the analysis.</span>
+    </div>
+
+    <section class="score-result" id="scoreResult" data-score-level="mid" hidden>
+      <div class="score-header">
+        <span class="score-label">Match score</span>
+        <span class="score-context" id="scoreContext"></span>
+      </div>
+      <div class="score-value">
+        <span id="overallScoreValue">0</span><span class="score-percent">%</span>
+      </div>
+      <p class="summary-text" id="summaryText"></p>
+    </section>
+
+    <section class="match-section" id="coveredSection" hidden>
+      <div class="match-section-header">
+        <h2>Covered</h2>
+        <span class="match-count" id="coveredCount">0</span>
+      </div>
+      <div class="match-list" id="coveredList"></div>
+    </section>
+
+    <section class="match-section" id="partialSection" hidden>
+      <div class="match-section-header">
+        <h2>Partial</h2>
+        <span class="match-count" id="partialCount">0</span>
+      </div>
+      <div class="match-list" id="partialList"></div>
+    </section>
+
+    <section class="match-section" id="gapSection" hidden>
+      <div class="match-section-header">
+        <h2>Gaps</h2>
+        <span class="match-count" id="gapCount">0</span>
+      </div>
+      <div class="match-list" id="gapList"></div>
+    </section>
+
     <details class="captured-details" id="capturedDetails">
       <summary>
         <span class="captured-title">Captured text</span>
