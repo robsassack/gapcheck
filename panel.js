@@ -11,6 +11,18 @@ const resultsBlock = document.getElementById("resultsBlock");
 const capturedMeta = document.getElementById("capturedMeta");
 const capturedPreview = document.getElementById("capturedPreview");
 
+/**
+ * @param {string} label
+ * @param {unknown} data
+ */
+function panelDebugLog(label, data) {
+  if (!window.GapcheckNano || !window.GapcheckNano.isDebugEnabled()) {
+    return;
+  }
+
+  console.log(`[GapCheck debug] ${label}`, data);
+}
+
 // --- Resume status -------------------------------------------------------
 
 async function checkResumeStatus() {
@@ -105,6 +117,10 @@ captureBtn.addEventListener("click", async () => {
     capturedMeta.textContent = `${text.length} characters captured`;
     capturedPreview.textContent = text;
     resultsBlock.hidden = false;
+    panelDebugLog("Captured selected text", {
+      charCount: text.length,
+      text,
+    });
   } catch (err) {
     console.error(err);
     capturedMeta.textContent =

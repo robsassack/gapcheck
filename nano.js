@@ -2,6 +2,7 @@
 
 const PASS_1_MAX_REQUIREMENTS = 20;
 const PASS_1_JOB_TEXT_CHAR_LIMIT = 6000;
+const GAPCHECK_DEBUG_STORAGE_KEY = "gapcheckDebug";
 const MATCH_STATUSES = Object.freeze(["covered", "partial", "gap"]);
 const MATCH_SEVERITIES = Object.freeze(["low", "medium", "high"]);
 const MATCH_STATUS_SCORES = Object.freeze({
@@ -39,6 +40,28 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
  */
 
 /**
+ * @typedef {"covered" | "partial" | "gap"} MatchStatus
+ */
+
+/**
+ * @typedef {"low" | "medium" | "high"} MatchSeverity
+ */
+
+/**
+ * @typedef {object} MatchResult
+ * @property {string} requirement
+ * @property {MatchStatus} status
+ * @property {string[]} matchedBullets
+ * @property {MatchSeverity | null} severity
+ */
+
+/**
+ * @typedef {object} Pass2AnalysisResult
+ * @property {MatchResult[]} matches
+ * @property {string} summary
+ */
+
+/**
  * @typedef {object} LanguageModelSession
  * @property {(input: string, options?: { responseConstraint?: object }) => Promise<string>} prompt
  * @property {() => void} destroy
@@ -53,10 +76,43 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
  * @typedef {Window & {
  *   GapcheckNano?: {
  *     extractRequirementsFromJobText: typeof extractRequirementsFromJobText,
- *     computeOverallScore: typeof computeOverallScore
+ *     analyzeRequirementsWithSavedResume: typeof analyzeRequirementsWithSavedResume,
+ *     computeOverallScore: typeof computeOverallScore,
+ *     enableDebug: typeof enableDebug,
+ *     disableDebug: typeof disableDebug,
+ *     isDebugEnabled: typeof isDebugEnabled
  *   }
  * }} GapcheckWindow
  */
+
+/**
+ * @returns {boolean}
+ */
+function isDebugEnabled() {
+  return localStorage.getItem(GAPCHECK_DEBUG_STORAGE_KEY) === "true";
+}
+
+function enableDebug() {
+  localStorage.setItem(GAPCHECK_DEBUG_STORAGE_KEY, "true");
+  console.info("GapCheck debug logging enabled. Logs may include captured job text and resume bullets.");
+}
+
+function disableDebug() {
+  localStorage.removeItem(GAPCHECK_DEBUG_STORAGE_KEY);
+  console.info("GapCheck debug logging disabled.");
+}
+
+/**
+ * @param {string} label
+ * @param {unknown} data
+ */
+function debugLog(label, data) {
+  if (!isDebugEnabled()) {
+    return;
+  }
+
+  console.log(`[GapCheck debug] ${label}`, data);
+}
 
 /**
  * @param {string} jobText
@@ -105,6 +161,13 @@ async function extractRequirementsFromJobText(jobText) {
 
   const truncatedJobText = truncateJobTextForPass1(jobText);
 
+  debugLog("Pass 1 input", {
+    originalCharCount: jobText.length,
+    truncatedCharCount: truncatedJobText.length,
+    truncated: jobText.trim().length > PASS_1_JOB_TEXT_CHAR_LIMIT,
+    text: truncatedJobText,
+  });
+
   /** @type {LanguageModelSession | null} */
   let session = null;
 
@@ -125,7 +188,10 @@ async function extractRequirementsFromJobText(jobText) {
 
     assertValidPass1ExtractionResult(parsedResult);
 
-    return parsedResult.requirements.map((requirement) => requirement.trim());
+    const requirements = parsedResult.requirements.map((requirement) => requirement.trim());
+    debugLog("Pass 1 requirements", requirements);
+
+    return requirements;
   } finally {
     if (session) {
       session.destroy();
@@ -183,6 +249,199 @@ const PASS_2_ANALYSIS_SCHEMA = Object.freeze({
 });
 
 /**
+ * @param {unknown[]} values
+ * @returns {string[]}
+ */
+function normalizeStringArray(values) {
+  /** @type {string[]} */
+  const normalized = [];
+
+  values.forEach((value) => {
+    if (typeof value !== "string") {
+      return;
+    }
+
+    const trimmed = value.trim();
+
+    if (trimmed) {
+      normalized.push(trimmed);
+    }
+  });
+
+  return normalized;
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} label
+ * @param {number} [maxItems]
+ * @returns {string[]}
+ */
+function validatePromptStringArray(value, label, maxItems) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array.`);
+  }
+
+  const normalized = normalizeStringArray(value);
+
+  if (normalized.length !== value.length) {
+    throw new Error(`${label} must contain only non-empty strings.`);
+  }
+
+  if (typeof maxItems === "number" && normalized.length > maxItems) {
+    throw new Error(`${label} must contain at most ${maxItems} items.`);
+  }
+
+  return normalized;
+}
+
+/**
+ * @returns {Promise<string[]>}
+ */
+async function getSavedResumeBullets() {
+  const { resumeBullets } = await chrome.storage.local.get("resumeBullets");
+
+  if (!resumeBullets) {
+    return [];
+  }
+
+  return validatePromptStringArray(resumeBullets, "Saved resume bullets");
+}
+
+/**
+ * @param {unknown} value
+ * @param {string[]} requirements
+ * @returns {asserts value is Pass2AnalysisResult}
+ */
+function assertValidPass2AnalysisResult(value, requirements) {
+  if (!value || typeof value !== "object") {
+    throw new Error("Pass 2 response was not an object.");
+  }
+
+  const result = /** @type {{ matches?: unknown, summary?: unknown }} */ (value);
+
+  if (!Array.isArray(result.matches)) {
+    throw new Error("Pass 2 response did not include a matches array.");
+  }
+
+  if (result.matches.length !== requirements.length) {
+    throw new Error("Pass 2 returned a different number of matches than requirements.");
+  }
+
+  if (typeof result.summary !== "string") {
+    throw new Error("Pass 2 response did not include a summary string.");
+  }
+
+  result.matches.forEach((match, index) => {
+    if (!match || typeof match !== "object") {
+      throw new Error(`Pass 2 match ${index + 1} was not an object.`);
+    }
+
+    const candidate = /** @type {{ requirement?: unknown, status?: unknown, matchedBullets?: unknown, severity?: unknown }} */ (match);
+
+    if (
+      typeof candidate.status !== "string" ||
+      !MATCH_STATUSES.includes(/** @type {MatchStatus} */ (candidate.status))
+    ) {
+      throw new Error(`Pass 2 match ${index + 1} had an invalid status.`);
+    }
+
+    if (!Array.isArray(candidate.matchedBullets)) {
+      throw new Error(`Pass 2 match ${index + 1} did not include matchedBullets.`);
+    }
+
+    const hasInvalidBullet = candidate.matchedBullets.some((bullet) => {
+      return typeof bullet !== "string" || bullet.trim().length === 0;
+    });
+
+    if (hasInvalidBullet) {
+      throw new Error(`Pass 2 match ${index + 1} included an invalid matched bullet.`);
+    }
+
+    const validSeverity =
+      candidate.severity === null ||
+      (typeof candidate.severity === "string" &&
+        MATCH_SEVERITIES.includes(/** @type {MatchSeverity} */ (candidate.severity)));
+
+    if (!validSeverity) {
+      throw new Error(`Pass 2 match ${index + 1} had an invalid severity.`);
+    }
+  });
+}
+
+/**
+ * @param {string[]} requirements
+ * @returns {Promise<Pass2AnalysisResult>}
+ */
+async function analyzeRequirementsWithSavedResume(requirements) {
+  if (typeof LanguageModel === "undefined") {
+    throw new Error("LanguageModel is not available in this browser.");
+  }
+
+  const normalizedRequirements = validatePromptStringArray(
+    requirements,
+    "Requirements",
+    PASS_1_MAX_REQUIREMENTS
+  );
+  const resumeBullets = await getSavedResumeBullets();
+  const promptInput = JSON.stringify(
+    {
+      requirements: normalizedRequirements,
+      resumeBullets,
+    },
+    null,
+    2
+  );
+
+  debugLog("Pass 2 input", {
+    requirements: normalizedRequirements,
+    resumeBullets,
+    promptInput,
+  });
+
+  /** @type {LanguageModelSession | null} */
+  let session = null;
+
+  try {
+    session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
+      initialPrompts: [
+        {
+          role: "system",
+          content: PASS_2_ANALYSIS_SYSTEM_PROMPT,
+        },
+      ],
+    });
+
+    const rawResult = await session.prompt(promptInput, {
+      responseConstraint: PASS_2_ANALYSIS_SCHEMA,
+    });
+    const parsedResult = JSON.parse(rawResult);
+
+    assertValidPass2AnalysisResult(parsedResult, normalizedRequirements);
+
+    const analysis = {
+      matches: parsedResult.matches.map((match, index) => {
+        return {
+          requirement: normalizedRequirements[index],
+          status: match.status,
+          matchedBullets: match.matchedBullets.map((bullet) => bullet.trim()),
+          severity: match.severity,
+        };
+      }),
+      summary: parsedResult.summary.trim(),
+    };
+
+    debugLog("Pass 2 analysis", analysis);
+
+    return analysis;
+  } finally {
+    if (session) {
+      session.destroy();
+    }
+  }
+}
+
+/**
  * @param {{ status: "covered" | "partial" | "gap" }[]} matches
  * @returns {number}
  */
@@ -200,5 +459,9 @@ function computeOverallScore(matches) {
 
 (/** @type {GapcheckWindow} */ (window)).GapcheckNano = Object.freeze({
   extractRequirementsFromJobText,
+  analyzeRequirementsWithSavedResume,
   computeOverallScore,
+  enableDebug,
+  disableDebug,
+  isDebugEnabled,
 });

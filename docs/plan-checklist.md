@@ -41,12 +41,12 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Call `.prompt()` with `responseConstraint` set to the Pass 1 schema
   - [x] `JSON.parse` the result; sanity-check it's an array within the `maxItems` bound
   - [x] `.destroy()` the session in a `finally` block
-- [ ] Pass 2 (analysis)
-  - [ ] Create fresh `LanguageModel` session with analysis system prompt
-  - [ ] Pass in `requirements[]` (from Pass 1) + `resumeBullets[]` (from `chrome.storage.local`)
-  - [ ] Call `.prompt()` with `responseConstraint` set to the Pass 2 schema
-  - [ ] `JSON.parse` the result; sanity-check `matches.length === requirements.length`
-  - [ ] `.destroy()` the session in a `finally` block
+- [x] Pass 2 (analysis)
+  - [x] Create fresh `LanguageModel` session with analysis system prompt
+  - [x] Pass in `requirements[]` (from Pass 1) + `resumeBullets[]` (from `chrome.storage.local`)
+  - [x] Call `.prompt()` with `responseConstraint` set to the Pass 2 schema
+  - [x] `JSON.parse` the result; sanity-check `matches.length === requirements.length`
+  - [x] `.destroy()` the session in a `finally` block
 - [ ] Scoring
   - [ ] Implement the pinned scoring function as a pure function taking `matches[]` and returning `overallScore`
   - [ ] Unit-test it against a few hand-built `matches[]` fixtures (all covered, all gap, mixed, empty)
@@ -103,3 +103,4 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 - [ ] History of saved analyses
 - [ ] Resume rewriting suggestions
 - [ ] Severity-weighted scoring (v2 stretch, formula noted in Phase 1)
+- [ ] Add preferences for positions, such as benefits or location
