@@ -15,6 +15,7 @@ const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Extract the most important concrete job requirements from the provided job posting.",
   `Return at most ${PASS_1_MAX_REQUIREMENTS} requirements.`,
   "If the posting contains more candidates, prioritize must-have qualifications, required skills, required experience levels, credentials, responsibilities, and explicit work constraints.",
+  "Avoid duplicate or overlapping requirements, and do not split one requirement into multiple items unless each item is independently required.",
   "Write each requirement as a concise standalone string.",
   "Do not include benefits, company culture, generic marketing copy, or application instructions.",
 ].join(" ");
@@ -328,9 +329,16 @@ async function extractRequirementsFromJobText(jobText) {
 
 const PASS_2_ANALYSIS_SYSTEM_PROMPT = [
   "Compare the provided job requirements against the provided resume bullets.",
+  "Treat technical skills, project descriptions, professional experience, support roles, and education/coursework as valid evidence.",
+  "Do not penalize a resume for showing broader or more senior experience than the job requires.",
   "Return one matches item for each provided requirement, in the same order.",
   "Copy each requirement string exactly into its matches item.",
-  'Use status "covered" when the resume clearly satisfies the requirement, "partial" when it shows related but incomplete evidence, and "gap" when it does not show relevant evidence.',
+  'Use status "covered" when the resume gives direct evidence of the required capability, including equivalent tools, transferable experience, or closely related domain work unless the requirement explicitly demands a specific credential, certification, platform, or years of experience.',
+  'Use status "partial" when the resume shows adjacent or incomplete evidence that a human reviewer would likely consider relevant, even if it does not fully prove the exact requirement.',
+  'Use status "gap" only when the resume provides no meaningful evidence for the requirement.',
+  "Prefer partial over gap when there is credible related evidence.",
+  'Examples: HTML/CSS/JavaScript, TypeScript, React, Next.js, or front-end project work can cover general web-page or front-end development requirements; Git, Azure DevOps, or release workflow evidence can cover Git collaboration requirements; support, ticketing, Agile, release coordination, or client-facing IT work can cover communication requirements.',
+  "For browser, mobile, accessibility, performance, and SEO requirements, use partial when the resume shows related web development experience but does not explicitly name that practice.",
   'For covered requirements, set severity to null; for partial and gap requirements, set severity to "low", "medium", or "high" based on the importance of the missing evidence.',
   "Always include matchedBullets as an array; use an empty array when no resume bullets support the requirement.",
   "Keep the summary to one or two concise sentences.",

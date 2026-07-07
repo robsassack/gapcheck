@@ -77,13 +77,13 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ## Phase 4 — Manual Testing Pass
 
-- [ ] Test against a short, well-structured job posting (clean bullet-list requirements)
-- [ ] Test against a long, prose-heavy job posting (requirements buried in paragraphs)
-- [ ] Test against a posting near/over the 6,000-char truncation limit
-- [ ] Test with a short resume (5–10 bullets)
-- [ ] Test with a long resume (20–30 bullets) — check Pass 2 stays within Nano's token budget
-- [ ] Test with a resume that has zero overlap with the posting (all gaps)
-- [ ] Test with a resume that fully covers the posting (all covered)
+- [x] Test against a short, well-structured job posting (clean bullet-list requirements)
+- [x] Test against a long, prose-heavy job posting (requirements buried in paragraphs)
+- [x] Test against a posting near/over the 6,000-char truncation limit
+- [x] Test with a short resume (5–10 bullets)
+- [x] Test with a long resume (20–30 bullets) — check Pass 2 stays within Nano's token budget
+- [x] Test with a resume that has zero overlap with the posting (all gaps)
+- [x] Test with a resume that fully covers the posting (all covered)
 - [ ] Re-run the same job + resume pair multiple times — check `matches[]` status classifications for run-to-run consistency (expected to vary somewhat on-device; confirm it's within a tolerable range)
 - [ ] Test on each supported OS if possible (Windows, macOS, Linux), since the Prompt API is desktop-only
 
@@ -107,3 +107,4 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 - [ ] Resume rewriting suggestions
 - [ ] Severity-weighted scoring (v2 stretch, formula noted in Phase 1)
 - [ ] Add preferences for positions, such as benefits or location
+- [ ] Smarter evidence selection / calibration: improve how matched resume bullets are chosen, especially when the model finds a reasonable status but cites weak supporting evidence
