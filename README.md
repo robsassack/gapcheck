@@ -9,12 +9,7 @@ The Nano analysis pipeline is planned but not implemented yet.
 1. Open `chrome://extensions`.
 2. Turn on Developer mode.
 3. Click Load unpacked.
-4. Select this project folder:
-
-   ```text
-   /Users/rob/Documents/dev/gapcheck
-   ```
-
+4. Select this repo's project folder.
 5. Pin GapCheck from the toolbar menu if you want quick access.
 
 ## Reload After Changes
