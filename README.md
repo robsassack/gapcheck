@@ -2,8 +2,6 @@
 
 GapCheck is a Chrome extension for comparing a selected job posting against a saved resume and surfacing a gap analysis. The current repo is a plain Manifest V3 scaffold: it loads as an unpacked extension, opens a side panel, saves resume bullets locally, and captures selected page text.
 
-The Nano analysis pipeline is planned but not implemented yet.
-
 ## Load in Chrome
 
 1. Open `chrome://extensions`.
