@@ -84,8 +84,8 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 - [x] Test with a long resume (20–30 bullets) — check Pass 2 stays within Nano's token budget
 - [x] Test with a resume that has zero overlap with the posting (all gaps)
 - [x] Test with a resume that fully covers the posting (all covered)
-- [ ] Re-run the same job + resume pair multiple times — check `matches[]` status classifications for run-to-run consistency (expected to vary somewhat on-device; confirm it's within a tolerable range)
-- [ ] Test on each supported OS if possible (Windows, macOS, Linux), since the Prompt API is desktop-only
+- [x] Re-run the same job + resume pair multiple times — check `matches[]` status classifications for run-to-run consistency (expected to vary somewhat on-device; confirm it's within a tolerable range)
+- [x] Test on each supported OS if possible (Windows, macOS, Linux), since the Prompt API is desktop-only
 
 ---
 

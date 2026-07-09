@@ -1,0 +1,57 @@
+Senior Product Operations Analyst
+Brightline Care Software | Remote | 2021-2026
+
+- Supported product operations for a B2B SaaS care coordination platform used by
+  enterprise healthcare customers across implementation, clinical operations,
+  and customer success workflows.
+- Partnered with product managers to translate roadmap priorities, customer
+  feedback, launch timelines, and operational constraints into clear action
+  plans.
+- Built repeatable processes for roadmap intake, release readiness, customer
+  feedback triage, beta tracking, and post-launch measurement.
+- Synthesized support tickets, CRM notes, sales feedback, customer interviews,
+  implementation notes, and product analytics into concise product
+  recommendations.
+- Created SQL-based dashboards in Looker to monitor feature adoption, workflow
+  completion, retention signals, and post-launch usage patterns.
+- Used spreadsheets for quick analysis, scenario modeling, operational tracking,
+  and prioritization support during quarterly planning.
+- Combined quantitative usage data with qualitative customer feedback to
+  identify recurring workflow pain points and recommend product or process
+  improvements.
+- Prepared executive summaries on launch health, adoption trends, customer
+  friction, customer-request patterns, and operational risks.
+- Coordinated cross-functional release planning across product, engineering,
+  design, customer success, implementation, and clinical operations teams.
+- Maintained launch checklists covering dependencies, enablement materials,
+  customer communications, release timing, support readiness, and follow-up
+  owners.
+- Monitored early adoption after major releases and coordinated follow-up when
+  customers experienced confusion, friction, or incomplete workflow adoption.
+- Improved the product intake process in Jira and Notion, reducing duplicate
+  requests and making prioritization decisions easier for product managers.
+- Helped product teams distinguish one-off enterprise customer requests from
+  broader market patterns by reviewing feedback volume, customer segment, and
+  workflow impact.
+- Facilitated roadmap reviews, beta program check-ins, launch retrospectives,
+  and quarterly planning sessions with clear agendas and decision records.
+- Documented product decisions, tradeoffs, open questions, launch plans, and
+  operating cadences in Notion for cross-functional visibility.
+- Worked closely with customer-facing teams to understand implementation
+  blockers, recurring support themes, and gaps in product enablement.
+- Supported complex enterprise implementations by tracking operational
+  dependencies, customer readiness, and unresolved workflow questions.
+- Helped maintain operating rhythms for customer advisory board follow-ups,
+  roadmap reviews, release readiness meetings, and post-launch retrospectives.
+- Analyzed inconsistent or incomplete data sources and clearly explained when
+  findings were directional rather than conclusive.
+- Recommended tooling and process improvements to reduce handoff confusion
+  between product, engineering, customer success, and implementation teams.
+- Worked in a regulated healthcare technology environment where accuracy,
+  documentation, compliance awareness, and attention to detail were important.
+- Operated independently as a senior individual contributor, prioritizing
+  analysis, surfacing risks early, and escalating decisions when needed.
+- Created concise written updates for busy stakeholders who needed clear
+  recommendations without reading raw data or long meeting notes.
+- Brought five years of experience across product operations, product analytics,
+  program management, and business operations for software teams.
