@@ -1,36 +1,40 @@
-const resumeStatusValue = document.getElementById("resumeStatusValue");
-const resumeStatusDot = document.querySelector("#resumeStatus .status-dot");
-const openOptionsBtn = document.getElementById("openOptionsBtn");
+// @ts-check
 
-const nanoStatusValue = document.getElementById("nanoStatusValue");
-const nanoStatusDot = document.querySelector("#nanoStatus .status-dot");
-const nanoStatusHint = document.getElementById("nanoStatusHint");
+const resumeStatusValue = /** @type {HTMLSpanElement} */ (document.getElementById("resumeStatusValue"));
+const resumeStatusDot = /** @type {HTMLSpanElement} */ (document.querySelector("#resumeStatus .status-dot"));
+const openOptionsBtn = /** @type {HTMLButtonElement} */ (document.getElementById("openOptionsBtn"));
 
-const analyzeBtn = document.getElementById("analyzeBtn");
-const analysisStatus = document.getElementById("analysisStatus");
-const analysisProgress = document.getElementById("analysisProgress");
-const progressStep = document.getElementById("progressStep");
-const progressTitle = document.getElementById("progressTitle");
-const resultsBlock = document.getElementById("resultsBlock");
-const resultEmpty = document.getElementById("resultEmpty");
-const emptyStateTitle = document.getElementById("emptyStateTitle");
-const emptyStateMessage = document.getElementById("emptyStateMessage");
-const scoreResult = document.getElementById("scoreResult");
-const overallScoreValue = document.getElementById("overallScoreValue");
-const scoreContext = document.getElementById("scoreContext");
-const summaryText = document.getElementById("summaryText");
-const coveredSection = document.getElementById("coveredSection");
-const partialSection = document.getElementById("partialSection");
-const gapSection = document.getElementById("gapSection");
-const coveredCount = document.getElementById("coveredCount");
-const partialCount = document.getElementById("partialCount");
-const gapCount = document.getElementById("gapCount");
-const coveredList = document.getElementById("coveredList");
-const partialList = document.getElementById("partialList");
-const gapList = document.getElementById("gapList");
-const capturedDetails = document.getElementById("capturedDetails");
-const capturedMeta = document.getElementById("capturedMeta");
-const capturedPreview = document.getElementById("capturedPreview");
+const nanoStatusValue = /** @type {HTMLSpanElement} */ (document.getElementById("nanoStatusValue"));
+const nanoStatusDot = /** @type {HTMLSpanElement} */ (document.querySelector("#nanoStatus .status-dot"));
+const nanoStatusHint = /** @type {HTMLParagraphElement} */ (document.getElementById("nanoStatusHint"));
+
+const analyzeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("analyzeBtn"));
+const captureHint = /** @type {HTMLParagraphElement} */ (document.getElementById("captureHint"));
+const analysisStatus = /** @type {HTMLParagraphElement} */ (document.getElementById("analysisStatus"));
+const analysisProgress = /** @type {HTMLDivElement} */ (document.getElementById("analysisProgress"));
+const progressStep = /** @type {HTMLSpanElement} */ (document.getElementById("progressStep"));
+const progressTitle = /** @type {HTMLSpanElement} */ (document.getElementById("progressTitle"));
+const resultsBlock = /** @type {HTMLElement} */ (document.getElementById("resultsBlock"));
+const resultEmpty = /** @type {HTMLDivElement} */ (document.getElementById("resultEmpty"));
+const emptyStateTitle = /** @type {HTMLElement} */ (document.getElementById("emptyStateTitle"));
+const emptyStateMessage = /** @type {HTMLParagraphElement} */ (document.getElementById("emptyStateMessage"));
+const scoreResult = /** @type {HTMLElement} */ (document.getElementById("scoreResult"));
+const overallScoreValue = /** @type {HTMLSpanElement} */ (document.getElementById("overallScoreValue"));
+const scoreContext = /** @type {HTMLParagraphElement} */ (document.getElementById("scoreContext"));
+const summaryText = /** @type {HTMLParagraphElement} */ (document.getElementById("summaryText"));
+const coveredSection = /** @type {HTMLElement} */ (document.getElementById("coveredSection"));
+const partialSection = /** @type {HTMLElement} */ (document.getElementById("partialSection"));
+const gapSection = /** @type {HTMLElement} */ (document.getElementById("gapSection"));
+const coveredCount = /** @type {HTMLSpanElement} */ (document.getElementById("coveredCount"));
+const partialCount = /** @type {HTMLSpanElement} */ (document.getElementById("partialCount"));
+const gapCount = /** @type {HTMLSpanElement} */ (document.getElementById("gapCount"));
+const coveredList = /** @type {HTMLDivElement} */ (document.getElementById("coveredList"));
+const partialList = /** @type {HTMLDivElement} */ (document.getElementById("partialList"));
+const gapList = /** @type {HTMLDivElement} */ (document.getElementById("gapList"));
+const capturedDetails = /** @type {HTMLDetailsElement} */ (document.getElementById("capturedDetails"));
+const capturedMeta = /** @type {HTMLSpanElement} */ (document.getElementById("capturedMeta"));
+const capturedPreview = /** @type {HTMLPreElement} */ (document.getElementById("capturedPreview"));
+const gapcheckWindow = /** @type {GapcheckWindow} */ (window);
 
 let capturedJobText = "";
 let savedResumeBulletCount = 0;
@@ -44,7 +48,7 @@ let hasRenderedAnalysis = false;
  * @param {unknown} data
  */
 function panelDebugLog(label, data) {
-  if (!window.GapcheckNano || !window.GapcheckNano.isDebugEnabled()) {
+  if (!gapcheckWindow.GapcheckNano || !gapcheckWindow.GapcheckNano.isDebugEnabled()) {
     return;
   }
 
@@ -121,6 +125,7 @@ function animateScore(targetScore) {
   const durationMs = 750;
   const startTime = performance.now();
 
+  /** @param {number} now */
   function tick(now) {
     const elapsed = now - startTime;
     const progress = Math.min(elapsed / durationMs, 1);
@@ -348,10 +353,11 @@ async function captureSelectedTextFromActiveTab() {
     throw new Error("No active tab found.");
   }
 
-  const [{ result }] = await chrome.scripting.executeScript({
+  const injectionResults = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: () => window.getSelection().toString(),
+    func: () => window.getSelection()?.toString() || "",
   });
+  const result = injectionResults[0]?.result;
 
   return (result || "").trim();
 }
@@ -381,8 +387,10 @@ function clearCapturedPreview(message) {
 // --- Resume status -------------------------------------------------------
 
 async function checkResumeStatus() {
-  const { resumeBullets } = await chrome.storage.local.get("resumeBullets");
-  if (resumeBullets && resumeBullets.length > 0) {
+  const { resumeBullets } = /** @type {{ resumeBullets?: unknown }} */ (
+    await chrome.storage.local.get("resumeBullets")
+  );
+  if (Array.isArray(resumeBullets) && resumeBullets.length > 0) {
     savedResumeBulletCount = resumeBullets.length;
     resumeStatusDot.dataset.state = "ok";
     resumeStatusValue.textContent = `${resumeBullets.length} bullets saved`;
@@ -404,7 +412,9 @@ openOptionsBtn.addEventListener("click", () => {
 // It won't exist at all on Chrome builds/flags that don't have it enabled.
 
 async function checkNanoAvailability() {
-  if (typeof LanguageModel === "undefined") {
+  const languageModel = getLanguageModelGlobal();
+
+  if (!languageModel) {
     nanoAvailability = "not-found";
     nanoStatusDot.dataset.state = "error";
     nanoStatusValue.textContent = "Not found";
@@ -415,7 +425,7 @@ async function checkNanoAvailability() {
   }
 
   try {
-    const availability = await LanguageModel.availability();
+    const availability = await languageModel.availability();
     nanoAvailability = availability;
 
     switch (availability) {
@@ -472,6 +482,7 @@ analyzeBtn.addEventListener("click", async () => {
   }
 
   isAnalyzing = true;
+  captureHint.hidden = true;
   updateAnalyzeButtonState();
 
   let hasFreshCapture = false;
@@ -506,11 +517,14 @@ analyzeBtn.addEventListener("click", async () => {
     await checkNanoAvailability();
 
     if (nanoAvailability === "downloadable" || nanoAvailability === "downloading") {
-      setAnalysisStatus("Downloading on-device model...", "info");
+      setAnalysisStatus("", "info");
       showAnalysisProgress("Preparing on-device model", "Downloading model...");
-      await window.GapcheckNano.ensureLanguageModelReady((progressPercent) => {
+      const gapcheckNano = gapcheckWindow.GapcheckNano;
+      if (!gapcheckNano) {
+        throw new Error("GapCheck analysis helpers are not available.");
+      }
+      await gapcheckNano.ensureLanguageModelReady((progressPercent) => {
         const roundedProgress = Math.round(progressPercent);
-        setAnalysisStatus(`Downloading on-device model: ${roundedProgress}%`, "info");
         showAnalysisProgress("Preparing on-device model", `Downloading model: ${roundedProgress}%`);
       });
       await checkNanoAvailability();
@@ -522,7 +536,11 @@ analyzeBtn.addEventListener("click", async () => {
 
     setAnalysisStatus("Extracting requirements...", "info");
     showAnalysisProgress("Analyzing selected text", "Pass 1 of 2: extracting requirements...");
-    const requirements = await window.GapcheckNano.extractRequirementsFromJobText(capturedJobText);
+    const gapcheckNano = gapcheckWindow.GapcheckNano;
+    if (!gapcheckNano) {
+      throw new Error("GapCheck analysis helpers are not available.");
+    }
+    const requirements = await gapcheckNano.extractRequirementsFromJobText(capturedJobText);
 
     if (requirements.length === 0) {
       throw new Error("No concrete requirements were found in the captured text.");
@@ -530,8 +548,8 @@ analyzeBtn.addEventListener("click", async () => {
 
     setAnalysisStatus("Comparing requirements to resume...", "info");
     showAnalysisProgress("Analyzing selected text", "Pass 2 of 2: comparing against your resume...");
-    const analysis = await window.GapcheckNano.analyzeRequirementsWithSavedResume(requirements);
-    const overallScore = window.GapcheckNano.computeOverallScore(analysis.matches);
+    const analysis = await gapcheckNano.analyzeRequirementsWithSavedResume(requirements);
+    const overallScore = gapcheckNano.computeOverallScore(analysis.matches);
 
     const result = {
       overallScore,
@@ -565,6 +583,7 @@ analyzeBtn.addEventListener("click", async () => {
     hideAnalysisProgress();
   } finally {
     isAnalyzing = false;
+    captureHint.hidden = false;
     updateAnalyzeButtonState(true);
   }
 });

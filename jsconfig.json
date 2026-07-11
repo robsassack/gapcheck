@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true,
+    "target": "ES2022",
+    "types": ["chrome"]
+  },
+  "files": ["nano.js", "panel.js"]
+}

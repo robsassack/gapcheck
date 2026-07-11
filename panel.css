@@ -146,6 +146,10 @@ body {
   margin: 6px 0 0;
 }
 
+.analysis-status:empty {
+  display: none;
+}
+
 .analysis-status[data-state="ok"] {
   color: var(--accent);
   font-weight: 600;

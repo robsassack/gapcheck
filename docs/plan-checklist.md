@@ -91,11 +91,11 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ## Phase 5 — Polish / Pre-Release
 
-- [ ] Confirm `chrome://on-device-internals` download-progress messaging is surfaced somewhere if the model isn't downloaded yet
-- [ ] Review copy/wording on empty states, error states, and the availability-status indicator
-- [ ] Confirm no network calls are made anywhere in the extension (matches the "nothing leaves the browser" claim)
+- [x] Confirm `chrome://on-device-internals` download-progress messaging is surfaced somewhere if the model isn't downloaded yet
+- [x] Review copy/wording on empty states, error states, and the availability-status indicator
+- [x] Confirm no network calls are made anywhere in the extension (matches the "nothing leaves the browser" claim)
 - [x] Write/update the extension's README or store listing description
-- [ ] Final pass on `// @ts-check` + JSDoc types — no type errors across `nano.js` and panel scripts
+- [x] Final pass on `// @ts-check` + JSDoc types — no type errors across `nano.js` and panel scripts
 
 ---
 

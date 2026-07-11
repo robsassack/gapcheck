@@ -78,6 +78,15 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
  */
 
 /**
+ * @returns {LanguageModelGlobal | undefined}
+ */
+function getLanguageModelGlobal() {
+  return /** @type {{ LanguageModel?: LanguageModelGlobal }} */ (
+    /** @type {unknown} */ (globalThis)
+  ).LanguageModel;
+}
+
+/**
  * @typedef {Window & {
  *   GapcheckNano?: {
  *     ensureLanguageModelReady: typeof ensureLanguageModelReady,
@@ -202,11 +211,12 @@ function normalizeDownloadProgress(loaded) {
  * @returns {Promise<void>}
  */
 async function ensureLanguageModelReady(onDownloadProgress) {
-  if (typeof LanguageModel === "undefined") {
+  const languageModel = getLanguageModelGlobal();
+
+  if (!languageModel) {
     throw new Error("LanguageModel is not available in this browser.");
   }
 
-  const languageModel = /** @type {LanguageModelGlobal} */ (LanguageModel);
   const availability = await languageModel.availability();
 
   if (availability === "available") {
@@ -282,7 +292,9 @@ function assertValidPass1ExtractionResult(value) {
  */
 async function extractRequirementsFromJobText(jobText) {
   return withModelOutputRetry(async () => {
-    if (typeof LanguageModel === "undefined") {
+    const languageModel = getLanguageModelGlobal();
+
+    if (!languageModel) {
       throw new Error("LanguageModel is not available in this browser.");
     }
 
@@ -299,7 +311,7 @@ async function extractRequirementsFromJobText(jobText) {
     let session = null;
 
     try {
-      session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
+      session = await languageModel.create({
         initialPrompts: [
           {
             role: "system",
@@ -434,7 +446,9 @@ function validatePromptStringArray(value, label, maxItems) {
  * @returns {Promise<string[]>}
  */
 async function getSavedResumeBullets() {
-  const { resumeBullets } = await chrome.storage.local.get("resumeBullets");
+  const { resumeBullets } = /** @type {{ resumeBullets?: unknown }} */ (
+    await chrome.storage.local.get("resumeBullets")
+  );
 
   if (!resumeBullets) {
     return [];
@@ -510,7 +524,9 @@ function assertValidPass2AnalysisResult(value, requirements) {
  */
 async function analyzeRequirementsWithSavedResume(requirements) {
   return withModelOutputRetry(async () => {
-    if (typeof LanguageModel === "undefined") {
+    const languageModel = getLanguageModelGlobal();
+
+    if (!languageModel) {
       throw new Error("LanguageModel is not available in this browser.");
     }
 
@@ -539,7 +555,7 @@ async function analyzeRequirementsWithSavedResume(requirements) {
     let session = null;
 
     try {
-      session = await /** @type {LanguageModelGlobal} */ (LanguageModel).create({
+      session = await languageModel.create({
         initialPrompts: [
           {
             role: "system",

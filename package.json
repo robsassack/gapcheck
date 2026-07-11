@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --project jsconfig.json"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.2.2",
+    "typescript": "^7.0.2"
+  }
+}
