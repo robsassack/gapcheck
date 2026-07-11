@@ -137,32 +137,54 @@ The results UI derives its sections by filtering `matches[]`: `covered` = `statu
 - `nano.js` module: two-pass pipeline with extraction and analysis sessions
 - Results UI: overall score, with three buckets — covered requirements (with matched bullets), partial matches (with matched bullets and severity), and flagged gaps (with severity)
 
-**Out (stretch/v2):**
-- PDF resume upload/parsing
-- Auto-scraping the job page DOM
+**Deferred until after v1:**
+- Analysis calibration and optional severity-weighted scoring
 - History of saved analyses
-- Resume rewriting suggestions
+- Job preferences and fit context
+- Resume improvement suggestions
+- PDF resume import
+- Automatic job-page capture
 
 ## Current State
 
-Scaffold and the Phase 2 Nano pipeline are implemented in the unpacked extension. What works:
+Version 1.0 is implemented in the unpacked extension. Phases 0–5 of the development checklist are complete. The current product includes:
 
 - Side panel opens on toolbar icon click (`sidePanel.setPanelBehavior`)
 - `LanguageModel.availability()` check with human-readable status and dot indicator in the panel
 - Resume paste/save/bullet-split on the options page (`chrome.storage.local`)
-- "Capture selected text" grabs `window.getSelection()` from the active tab and previews it
+- A single "Analyze selected text" action that captures `window.getSelection()`, previews it, and runs both Nano passes
 - Storage change listener keeps the panel's resume status in sync with the options page
 - `nano.js` runs the two-pass Prompt API pipeline: Pass 1 extracts requirements, Pass 2 compares them to saved resume bullets, and code computes `overallScore`
-- The side panel has a separate Analyze action that checks model availability, can trigger the model download, shows download progress/status, and renders a JSON debug-style analysis result
+- A results view with the code-owned score, summary, and expanded Covered, Partial, and Gaps sections
+- Model availability, download progress, malformed-output retry, and actionable empty/error states
+- Local-only resume storage and analysis with no API keys or server calls
 
-**Still pending:** Phase 3 results UI. The current analysis output is intentionally plain JSON while the product UI is still being built.
+The v1 score remains directional because Nano's extracted requirements and classifications can vary between runs. The deterministic scoring function produces the same score for the same `matches[]`; improving model consistency is the first post-v1 phase.
 
-**Next step:** Replace the separate capture/analyze testing flow with one primary "Analyze selected text" action and render the score, covered, partial, gaps, and summary sections.
+## Post-v1 Roadmap
 
-## Open Questions / Things to Pressure-Test Before Building
+### Phase 6 — Analysis Quality and Calibration
 
-1. **Pass 1 max requirement count is pinned at 20.** The schema uses `maxItems: 20` on `requirements[]`, paired with a system prompt instruction to return at most 20 requirements and prioritize the most important concrete requirements if more are present.
+Build a repeatable benchmark set, separate Pass 1 extraction issues from Pass 2 classification issues, and improve evidence selection only where testing shows systematic errors. Evaluate severity-weighted scoring after classification quality is stable; adopt it only if it improves the benchmark results without increasing run-to-run instability.
 
-2. **Pass 2 input budget isn't just `requirements[]`.** `resumeBullets[]` is a second variable-length input competing for the same ~2K token window. A resume with 20–30 bullets (common for someone with a decade of experience) is worth sanity-checking against total token count, not just a short-resume case.
+### Phase 7 — Saved Analysis History
 
-3. **Determinism/consistency.** On-device small models can vary run-to-run more than a hosted large model for the same input. Since `overallScore` is now code-computed from `matches[]`, the score itself is stable given a fixed `matches[]` output — but the underlying `status` classifications (covered vs. partial vs. gap) can still vary between runs on the same input. Worth deciding whether that's fine as "directionally useful," or whether temperature reduction / few-shot examples in the system prompt are needed to tighten consistency.
+Store successful analysis records locally using a versioned, bounded schema. Let users reopen, delete, or clear saved analyses while keeping malformed or older records from breaking the side panel.
+
+### Phase 8 — Job Preferences and Fit Context
+
+Add optional local preferences for factors such as location, work arrangement, compensation, benefits, and employment type. Show preference matches, conflicts, and unknowns separately from the resume qualification score so the existing percentage retains its meaning.
+
+### Phase 9 — Resume Improvement Suggestions
+
+Generate suggestions from partial matches and gaps while distinguishing weak resume evidence from genuinely missing experience. Suggestions must never invent skills, credentials, accomplishments, or metrics and must not overwrite the saved resume.
+
+### Phase 10 — PDF Resume Import
+
+Extract text from a locally selected PDF, preview it, and feed it through the existing resume-normalization path without uploading the file. Keep pasted text as a fallback and clearly reject encrypted, malformed, empty, or image-only PDFs that cannot be processed.
+
+### Phase 11 — Automatic Job-Page Capture
+
+Add an explicit, user-triggered page-text fallback while continuing to prefer selected text. Start with site-agnostic readable-content extraction, preview the result before analysis, preserve manual selection, and review whether the extension's host permissions can be narrowed.
+
+The implementation-ready task breakdown and acceptance checks for these phases live in `docs/plan-checklist.md`.

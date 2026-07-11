@@ -99,12 +99,116 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ---
 
-## Explicit Out-of-Scope for v1 (Do Not Start These)
+## Phase 6 — Analysis Quality and Calibration
 
-- [ ] PDF resume upload/parsing
-- [ ] Auto-scraping the job page DOM
-- [ ] History of saved analyses
-- [ ] Resume rewriting suggestions
-- [ ] Severity-weighted scoring (v2 stretch, formula noted in Phase 1)
-- [ ] Add preferences for positions, such as benefits or location
-- [ ] Smarter evidence selection / calibration: improve how matched resume bullets are chosen, especially when the model finds a reasonable status but cites weak supporting evidence
+- [ ] Establish a benchmark set
+  - [ ] Add a strong-match resume/job pair
+  - [ ] Add a medium-match resume/job pair
+  - [ ] Add a clear-mismatch resume/job pair
+  - [ ] Document directional score ranges and important expected classifications
+- [ ] Add a compact debug-report workflow that captures requirements, statuses, severities, matched bullets, and final score
+- [ ] Run each benchmark repeatedly and record the observed variation
+- [ ] Audit Pass 1 independently
+  - [ ] Compare extracted requirements across repeated runs
+  - [ ] Check for missing must-haves, duplicated requirements, and unstable grouping
+- [ ] Audit Pass 2 independently
+  - [ ] Check explicit resume evidence is not classified as a gap
+  - [ ] Check transferable evidence is consistently distinguished from direct evidence
+  - [ ] Check cited resume bullets genuinely support each classification
+- [ ] Refine the prompt only for systematic errors reproduced across the benchmark set
+- [ ] Improve evidence selection and matched-bullet relevance
+- [ ] Evaluate severity-weighted scoring
+  - [ ] Pin a proposed formula in the plan before changing code
+  - [ ] Compare the current and proposed formulas against every benchmark
+  - [ ] Reject the change if severity variation makes scores less stable or less intuitive
+  - [ ] If adopted, implement the formula as a pure code-owned function
+  - [ ] Add deterministic browser-run tests for all statuses and severities
+- [ ] Re-run malformed-output, long-input, and manual browser tests
+- [ ] Document the resulting scoring behavior and known limitations
+
+---
+
+## Phase 7 — Saved Analysis History
+
+- [ ] Define a versioned local analysis-record schema
+  - [ ] Include an ID, creation timestamp, score, summary, requirements, and matches
+  - [ ] Allow optional job title, company, source URL, and captured-text metadata
+  - [ ] Define a bounded retention limit
+- [ ] Save successful analyses only
+- [ ] Add a history view with newest analyses first
+- [ ] Render enough metadata to identify each saved analysis
+- [ ] Let users reopen an analysis without rerunning Nano
+- [ ] Add delete-one and clear-all actions with confirmation where appropriate
+- [ ] Handle empty history and storage errors with inline states
+- [ ] Ignore or safely migrate malformed and older record versions
+- [ ] Confirm saved history remains in local extension storage
+- [ ] Test save, reopen, delete, clear-all, retention, and schema migration behavior
+- [ ] Update privacy and usage documentation
+
+---
+
+## Phase 8 — Job Preferences and Fit Context
+
+- [ ] Define optional preference fields
+  - [ ] Location
+  - [ ] Remote, hybrid, or on-site work arrangement
+  - [ ] Compensation range
+  - [ ] Benefits
+  - [ ] Employment type
+  - [ ] Free-form user priorities
+- [ ] Allow each preference category to be disabled or left unset
+- [ ] Store preferences locally and add edit/reset controls
+- [ ] Define structured model output for preference matches, conflicts, and unknowns
+- [ ] Keep preference fit separate from the resume qualification score
+- [ ] Treat missing job-posting information as unknown rather than a mismatch
+- [ ] Render preference results in a distinct section
+- [ ] Handle empty preferences and malformed preference output gracefully
+- [ ] Test complete, partial, absent, and contradictory posting information
+- [ ] Confirm preferences do not alter existing qualification classifications or scoring
+
+---
+
+## Phase 9 — Resume Improvement Suggestions
+
+- [ ] Define structured suggestion output derived from partial matches and gaps
+- [ ] Distinguish missing resume evidence from genuinely missing experience
+- [ ] Instruct the model never to fabricate skills, credentials, accomplishments, or metrics
+- [ ] Generate suggestions only after a successful analysis
+- [ ] Present suggestions as optional guidance without changing the saved resume
+- [ ] Add copy controls for individual suggestions
+- [ ] Add clear AI-generated-content guidance
+- [ ] Handle no-suggestion and malformed-output cases
+- [ ] Test strong matches, weakly evidenced experience, transferable experience, and true gaps
+- [ ] Verify suggestions stay grounded in the saved resume and analyzed posting
+
+---
+
+## Phase 10 — PDF Resume Import
+
+- [ ] Select a local PDF text-extraction approach compatible with Manifest V3
+- [ ] Review dependency license, packaged size, and content-security-policy needs
+- [ ] Add a local PDF file picker to the options page
+- [ ] Extract PDF text without uploading the file
+- [ ] Preview extracted text before replacing the saved resume
+- [ ] Feed confirmed text through the existing normalization and bullet parser
+- [ ] Preserve pasted text as a fallback and existing saved data until import is confirmed
+- [ ] Handle encrypted, malformed, empty, and image-only PDFs with clear errors
+- [ ] Test representative single-column, multi-column, and long resumes
+- [ ] Confirm no network calls are introduced
+- [ ] Update README usage, privacy, and limitations
+
+---
+
+## Phase 11 — Automatic Job-Page Capture
+
+- [ ] Add an explicit user-triggered "Use page text" action
+- [ ] Continue to prefer selected text when a selection exists
+- [ ] Extract readable page content without site-specific selectors in the initial implementation
+- [ ] Reduce navigation, footer, cookie-banner, and unrelated page text where practical
+- [ ] Preview captured page text before analysis
+- [ ] Apply the existing job-text length limit and truncation messaging
+- [ ] Handle restricted pages, sparse content, and script-injection failures
+- [ ] Preserve manual selection as a fallback
+- [ ] Review whether current host permissions can be narrowed
+- [ ] Test common job boards and generic company career pages
+- [ ] Reconfirm local-only privacy behavior and update usage documentation
