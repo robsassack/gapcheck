@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "GapCheck",
-  "version": "0.1.0",
-  "description": "Compares a selected job posting against your resume using on-device AI and semantic similarity.",
+  "version": "1.0.0",
+  "description": "Compare job requirements against your resume using private, on-device AI.",
   "permissions": ["sidePanel", "storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "action": {
