@@ -31,6 +31,26 @@ Chrome does not automatically reload unpacked extensions after file changes.
 
 After editing extension files, open `chrome://extensions` and click the reload icon on the GapCheck extension card. If the side panel or options page is already open, close and reopen it after reloading.
 
+## Development Benchmark Runner
+
+GapCheck includes a browser-based runner for the packaged Product Operations and
+Web Developer benchmarks. After loading or reloading the unpacked extension:
+
+1. Open `chrome://extensions` and copy the ID shown on the GapCheck extension card.
+2. Replace `<extension-id>` in the URL below with that ID:
+
+   ```text
+   chrome-extension://<extension-id>/tests/benchmark-runner.html
+   ```
+
+3. Open the resulting URL in Chrome, select the benchmark families and
+   repetition count, and click Run benchmarks.
+
+Each Nano analysis can take one to two minutes. Keep the runner page open and
+the computer awake until the queue finishes. See the
+[benchmark fixture guide](tests/fixtures/README.md) for the fixture structure,
+expected behavior, cancellation behavior, and report details.
+
 ## Built-In AI Requirement
 
 GapCheck uses Chrome's built-in Prompt API with Gemini Nano for local analysis. It requires a supported desktop Chrome installation with the Prompt API available. The side panel checks model readiness, starts the model download from the Analyze action when needed, and displays download or unavailable states.

@@ -112,3 +112,20 @@ bullets that do not support the requirement.
 Nano can vary between runs, while the code-owned scoring function remains
 deterministic for a fixed set of matches. Record actual ranges during the
 repeated-run step before changing prompts or scoring.
+
+## Running the benchmarks
+
+Reload the unpacked extension after code or fixture changes, then open:
+
+```text
+chrome-extension://<extension-id>/tests/benchmark-runner.html
+```
+
+Choose one or both benchmark families and a repetition count. The runner loads
+the packaged fixtures, uses the same resume parser as the options page, runs
+each comparison sequentially, and leaves the resume saved in GapCheck
+unchanged. Keep the runner page open and the computer awake until the queue
+finishes.
+
+Cancellation takes effect after the current analysis finishes. Completed and
+failed runs remain available in the JSON and Markdown reports.

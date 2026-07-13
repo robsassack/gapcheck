@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GapCheck Benchmark Runner</title>
+  <link rel="stylesheet" href="benchmark-runner.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">GapCheck development tool</p>
+      <h1>Benchmark runner</h1>
+      <p class="intro">
+        Run packaged fixtures sequentially against Gemini Nano. Runs stay local and do not replace
+        the resume saved in GapCheck.
+      </p>
+    </header>
+
+    <section class="card controls" aria-labelledby="runnerSettingsTitle">
+      <h2 id="runnerSettingsTitle">Run settings</h2>
+
+      <fieldset>
+        <legend>Benchmark families</legend>
+        <label><input type="checkbox" name="family" value="product-ops" checked /> Product Operations</label>
+        <label><input type="checkbox" name="family" value="web-developer" checked /> Web Developer</label>
+      </fieldset>
+
+      <label class="repetitions-field" for="repetitions">
+        Repetitions per comparison
+        <input id="repetitions" type="number" min="1" max="10" value="3" />
+      </label>
+
+      <div class="button-row">
+        <button id="runBtn" class="primary" type="button">Run benchmarks</button>
+        <button id="cancelBtn" type="button" disabled>Cancel after current analysis</button>
+      </div>
+      <p class="hint">Each full analysis may take one to two minutes. Keep this page open while the queue runs.</p>
+    </section>
+
+    <section class="card progress-card" aria-labelledby="runProgressTitle">
+      <div class="section-heading">
+        <h2 id="runProgressTitle">Progress</h2>
+        <span id="elapsed">00:00</span>
+      </div>
+      <p id="status" role="status">Ready.</p>
+      <progress id="progress" value="0" max="1"></progress>
+      <p id="progressCount" class="hint">0 of 0 comparisons completed</p>
+    </section>
+
+    <section class="card" aria-labelledby="resultsTitle">
+      <div class="section-heading">
+        <h2 id="resultsTitle">Results</h2>
+        <div class="button-row compact">
+          <button id="copyJsonBtn" type="button" disabled>Copy JSON</button>
+          <button id="copyMarkdownBtn" type="button" disabled>Copy Markdown</button>
+        </div>
+      </div>
+      <div id="reportWarnings" class="report-warnings" hidden></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Family</th>
+              <th>Rep</th>
+              <th>Resume</th>
+              <th>Score</th>
+              <th>Target</th>
+              <th>Time</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody">
+            <tr class="empty-row"><td colspan="7">No benchmark results yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="../resume-parser.js"></script>
+  <script src="../nano.js"></script>
+  <script src="benchmark-runner.js"></script>
+</body>
+</html>

@@ -121,14 +121,14 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
     - [x] Document clear regression signals
   - [x] Confirm each fixture is realistic and internally consistent
 - [ ] Add a compact benchmark-runner and debug-report workflow
-  - [ ] Load jobs and resumes from the packaged fixture directories
-  - [ ] Select benchmark families and repetition count
-  - [ ] Run analyses sequentially with progress and elapsed time
-  - [ ] Capture Pass 1 requirements and full Pass 2 results
-  - [ ] Preserve failures without stopping the queue
-  - [ ] Allow cancellation
-  - [ ] Export or copy a compact report
-- [ ] Add a compact debug-report workflow that captures requirements, statuses, severities, matched bullets, and final score
+  - [x] Load jobs and resumes from the packaged fixture directories
+  - [x] Select benchmark families and repetition count
+  - [x] Run analyses sequentially with progress and elapsed time
+  - [x] Capture Pass 1 requirements and full Pass 2 results
+  - [x] Preserve individual analysis failures without stopping the queue
+  - [x] Allow cancellation after the current analysis
+  - [x] Copy a compact JSON or Markdown report
+  - [ ] Run the benchmark runner in Chrome and verify a complete queue
 - [ ] Run each benchmark repeatedly and record the observed variation
 - [ ] Audit Pass 1 independently
   - [ ] Compare extracted requirements across repeated runs

@@ -91,6 +91,7 @@ function getLanguageModelGlobal() {
  *   GapcheckNano?: {
  *     ensureLanguageModelReady: typeof ensureLanguageModelReady,
  *     extractRequirementsFromJobText: typeof extractRequirementsFromJobText,
+ *     analyzeRequirementsWithResumeBullets: typeof analyzeRequirementsWithResumeBullets,
  *     analyzeRequirementsWithSavedResume: typeof analyzeRequirementsWithSavedResume,
  *     computeOverallScore: typeof computeOverallScore,
  *     enableDebug: typeof enableDebug,
@@ -520,9 +521,10 @@ function assertValidPass2AnalysisResult(value, requirements) {
 
 /**
  * @param {string[]} requirements
+ * @param {string[]} resumeBullets
  * @returns {Promise<Pass2AnalysisResult>}
  */
-async function analyzeRequirementsWithSavedResume(requirements) {
+async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets) {
   return withModelOutputRetry(async () => {
     const languageModel = getLanguageModelGlobal();
 
@@ -535,11 +537,11 @@ async function analyzeRequirementsWithSavedResume(requirements) {
       "Requirements",
       PASS_1_MAX_REQUIREMENTS
     );
-    const resumeBullets = await getSavedResumeBullets();
+    const normalizedResumeBullets = validatePromptStringArray(resumeBullets, "Resume bullets");
     const promptInput = JSON.stringify(
       {
         requirements: normalizedRequirements,
-        resumeBullets,
+        resumeBullets: normalizedResumeBullets,
       },
       null,
       2
@@ -547,7 +549,7 @@ async function analyzeRequirementsWithSavedResume(requirements) {
 
     debugLog("Pass 2 input", {
       requirements: normalizedRequirements,
-      resumeBullets,
+      resumeBullets: normalizedResumeBullets,
       promptInput,
     });
 
@@ -595,6 +597,16 @@ async function analyzeRequirementsWithSavedResume(requirements) {
 }
 
 /**
+ * @param {string[]} requirements
+ * @returns {Promise<Pass2AnalysisResult>}
+ */
+async function analyzeRequirementsWithSavedResume(requirements) {
+  const resumeBullets = await getSavedResumeBullets();
+
+  return analyzeRequirementsWithResumeBullets(requirements, resumeBullets);
+}
+
+/**
  * @param {{ status: "covered" | "partial" | "gap" }[]} matches
  * @returns {number}
  */
@@ -613,6 +625,7 @@ function computeOverallScore(matches) {
 (/** @type {GapcheckWindow} */ (window)).GapcheckNano = Object.freeze({
   ensureLanguageModelReady,
   extractRequirementsFromJobText,
+  analyzeRequirementsWithResumeBullets,
   analyzeRequirementsWithSavedResume,
   computeOverallScore,
   enableDebug,
