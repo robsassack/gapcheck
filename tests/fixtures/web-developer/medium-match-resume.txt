@@ -1,0 +1,36 @@
+Morgan Ellis
+Ann Arbor, MI
+
+DIGITAL CONTENT SPECIALIST
+Greenway Community Services | 2023-2026
+
+- Maintained page content, images, links, and navigation for a WordPress website
+  serving six community programs.
+- Adjusted HTML and CSS templates to support new campaign pages and improve
+  layouts on phones and tablets.
+- Worked from simple design mockups and coordinated revisions with a freelance
+  designer and program managers.
+- Used browser developer tools to investigate styling problems and broken form
+  fields before escalating code changes to an external developer.
+- Checked new pages in Chrome and on common mobile screen sizes before
+  publication.
+- Applied heading structure, alternative text, descriptive link text, and basic
+  image optimization during content updates.
+- Wrote project tickets and explained publishing constraints to non-technical
+  stakeholders.
+
+COMMUNICATIONS ASSISTANT
+River County Arts Council | 2021-2023
+
+- Published event pages and newsletters using a content management system and
+  reusable templates.
+- Made small HTML and CSS edits to correct spacing, typography, and content
+  presentation.
+- Coordinated website requests with staff members and an outside web agency.
+
+PROJECTS AND TRAINING
+
+- Completed introductory JavaScript coursework covering variables, functions,
+  arrays, events, and DOM updates.
+- Built a small responsive portfolio site with HTML, CSS, and JavaScript.
+- Used GitHub Desktop to version personal coursework and portfolio changes.

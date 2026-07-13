@@ -1,0 +1,39 @@
+Taylor Kim
+Detroit, MI
+
+JUNIOR FRONT-END DEVELOPER
+Lakeview Digital Studio | 2024-2026
+
+- Built responsive marketing sites and landing pages for small-business clients
+  using semantic HTML, modern CSS, and JavaScript.
+- Translated Figma mockups and written acceptance criteria into reusable page
+  sections that worked across desktop and mobile layouts.
+- Developed React components for forms, navigation, testimonials, service
+  listings, and lead-generation pages.
+- Diagnosed layout, validation, and interaction bugs reported by clients and
+  project managers.
+- Tested releases in Chrome, Safari, Firefox, iOS, and Android viewport sizes
+  before publishing changes.
+- Used Git branches and pull requests to collaborate with two developers and
+  incorporate code-review feedback.
+- Improved keyboard navigation, form labels, heading structure, and color
+  contrast during accessibility reviews.
+- Reduced image payloads and unnecessary scripts to improve Core Web Vitals on
+  several client sites.
+- Updated metadata, semantic page structure, redirects, and internal links for
+  basic search optimization.
+- Explained implementation options and delivery risks during weekly meetings
+  with designers, account managers, and clients.
+
+WEB DEVELOPMENT INTERN
+North Loop Community Media | 2023-2024
+
+- Updated content, page layouts, and site navigation in an existing JavaScript
+  and CSS codebase.
+- Fixed responsive styling defects and cross-browser inconsistencies under the
+  guidance of a senior developer.
+- Documented completed changes and unresolved questions in project tickets.
+
+EDUCATION
+
+Associate of Applied Science in Web Development

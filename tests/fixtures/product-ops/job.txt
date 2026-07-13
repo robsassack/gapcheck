@@ -1,0 +1,73 @@
+Senior Product Operations Analyst
+
+Northstar Health is hiring a Senior Product Operations Analyst to help product,
+design, engineering, customer success, and clinical operations teams make better
+decisions as its care coordination platform expands into new markets. This role
+turns ambiguous information into clear operating processes, useful reporting,
+and practical recommendations. The ideal candidate understands how software
+product teams operate and enjoys improving the systems behind their work.
+
+The analyst will partner with product managers on roadmap priorities, customer
+feedback, launch timelines, and operational constraints. The work requires
+synthesizing support tickets, customer interviews, CRM records, analytics
+dashboards, sales feedback, implementation notes, and internal planning
+documents. The analyst should identify patterns, surface risks early, and help
+teams decide where process, tooling, or communication changes will have the
+greatest impact.
+
+Candidates should be able to create adaptable, repeatable processes for roadmap
+intake, release readiness, customer feedback triage, and post-launch
+measurement. They must be able to document decisions, maintain clear owners and
+next steps, and follow through consistently. Strong written communication is
+important because recommendations must be concise and useful to stakeholders
+who cannot review every raw data source or meeting note.
+
+This role spends meaningful time working with product and operational data.
+Candidates do not need to be data scientists, but they should be comfortable
+querying or analyzing data, finding inconsistencies, and explaining what the
+numbers do and do not prove. SQL experience is strongly preferred. Experience
+with a BI tool such as Looker, Tableau, Mode, or Power BI is helpful. Strong
+spreadsheet skills are needed for quick analysis, scenario modeling, and
+operational tracking. Candidates should be able to combine quantitative
+findings with qualitative customer feedback instead of relying on a single
+source.
+
+Because the product supports clinical workflows, attention to detail matters.
+The analyst will coordinate launches across product, engineering,
+customer-facing teams, and operational stakeholders. Responsibilities include
+preparing launch checklists, tracking dependencies, confirming enablement
+materials, monitoring early adoption, and coordinating follow-up when customers
+experience confusion or friction. Experience in healthcare, care delivery,
+insurance, another regulated industry, or a compliance-heavy environment is
+valuable but not required when the candidate has strong product operations
+experience elsewhere.
+
+Strong cross-functional collaboration is required. Candidates should be
+comfortable facilitating meetings, asking clarifying questions, resolving
+conflicting input, and helping teams leave discussions with clear decisions and
+owners. Experience supporting agile product teams, working with Jira or Linear,
+maintaining documentation in Confluence or Notion, and coordinating release
+planning across multiple teams is preferred.
+
+Candidates should have at least five years of experience in product operations,
+business operations, product analytics, program management, consulting, or a
+similar role supporting software teams. B2B SaaS experience is preferred,
+especially work with enterprise customers or complex implementation cycles.
+This is a senior individual-contributor role that requires independent
+prioritization, sound judgment, and knowing when to escalate decisions.
+
+Typical work includes building a dashboard to track feature adoption, reviewing
+customer feedback for recurring workflow problems, preparing a concise summary
+of launch risks, improving the product intake process, and helping a product
+manager distinguish a one-off customer request from a broader market pattern.
+The analyst may also maintain quarterly planning, roadmap reviews, beta-program
+tracking, customer-advisory-board follow-up, and post-launch retrospectives.
+
+The strongest candidates are curious, pragmatic, and clear communicators. They
+can move from detailed analysis to an executive summary without losing
+important context, make messy information usable, and state when available data
+is incomplete or a recommendation depends on judgment.
+
+This is a remote-friendly United States role. Candidates must be available for
+core working hours aligned with the Eastern or Central time zones and for
+occasional travel two to four times per year.

@@ -1,0 +1,41 @@
+Casey Morgan
+Columbus, OH
+
+BUSINESS OPERATIONS COORDINATOR
+Harborline Distribution | 2023-2026
+
+- Coordinated improvement projects across sales, warehouse operations, finance,
+  and customer service for a regional commercial equipment distributor.
+- Replaced email-based service requests with a documented intake and assignment
+  process, giving managers clearer ownership and turnaround reporting.
+- Built Excel trackers and pivot-table reports for order delays, service volume,
+  inventory exceptions, and customer response times.
+- Reviewed customer surveys and service notes alongside monthly operating
+  metrics to identify recurring delivery and communication problems.
+- Prepared concise weekly summaries of project status, unresolved dependencies,
+  and decisions needed from department leaders.
+- Facilitated planning meetings, documented action items, and followed up with
+  owners when deadlines or handoffs were at risk.
+- Helped coordinate the rollout of a new inventory system by maintaining the
+  project checklist, scheduling training, and collecting employee feedback.
+- Created process guides in Confluence and managed improvement tasks in Jira.
+- Supported managers with spreadsheet-based staffing scenarios and quarterly
+  capacity planning.
+
+PROJECT COORDINATOR
+Stonebridge Consulting Group | 2021-2023
+
+- Maintained schedules, risk logs, meeting notes, and client deliverables for
+  process-improvement engagements in retail and light manufacturing.
+- Interviewed client employees, grouped recurring workflow problems, and helped
+  consultants turn findings into recommendations.
+- Produced basic Tableau visualizations from cleaned spreadsheet exports but did
+  not write database queries or administer analytics systems.
+- Coordinated client review sessions and revised documentation when requirements
+  or timelines changed.
+- Balanced several small engagements independently and escalated scope or
+  schedule conflicts to the engagement manager.
+
+EDUCATION
+
+Bachelor of Science in Business Administration

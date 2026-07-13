@@ -1,0 +1,23 @@
+Junior Web Developer
+
+BrightPath Studio is hiring a junior Web Developer to build and maintain small
+business websites, landing pages, and internal web tools. This hands-on role is
+for someone who can turn straightforward designs and written requirements into
+clean, responsive pages while collaborating with designers, project managers,
+developers, and clients.
+
+Requirements:
+- Build responsive web pages with HTML, CSS, and JavaScript
+- Update existing website content, layouts, forms, and navigation
+- Work from design mockups and written feature requests
+- Test pages in Chrome, Safari, Firefox, and common mobile screen sizes
+- Diagnose and fix front-end problems involving layout, forms, and browser behavior
+- Use Git for version control and collaboration with other developers
+- Explain progress, tradeoffs, and blockers clearly to technical and
+  non-technical teammates
+
+Nice to have:
+- Experience with React or another component-based front-end framework
+- Familiarity with semantic HTML and basic accessibility practices
+- Basic understanding of website performance and SEO
+- Experience working with client websites or in a small agency environment

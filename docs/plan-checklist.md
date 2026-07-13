@@ -101,11 +101,33 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ## Phase 6 — Analysis Quality and Calibration
 
-- [ ] Establish a benchmark set
-  - [ ] Add a strong-match resume/job pair
-  - [ ] Add a medium-match resume/job pair
-  - [ ] Add a clear-mismatch resume/job pair
-  - [ ] Document directional score ranges and important expected classifications
+- [x] Establish a benchmark set
+  - [x] Define the shared benchmark jobs
+    - [x] Revise the Product Operations job to stay below the Pass 1 character limit
+    - [x] Revise the Web Developer job as a second role family
+    - [x] Identify the stable requirement themes each benchmark should exercise
+  - [x] Prepare the Product Operations benchmark resumes
+    - [x] Revise the strong-match resume to use natural, non-mirrored evidence
+    - [x] Add a deliberately mixed medium-match resume
+    - [x] Review and rename the clear-mismatch resume
+  - [x] Prepare the Web Developer benchmark resumes
+    - [x] Add a strong-match resume with direct front-end evidence
+    - [x] Add a medium-match resume with adjacent website experience
+    - [x] Add a clear-mismatch resume with no development experience
+  - [x] Document expected benchmark behavior
+    - [x] Assign a directional score range to each benchmark
+    - [x] Document important expected classifications
+    - [x] Document acceptable classification variation
+    - [x] Document clear regression signals
+  - [x] Confirm each fixture is realistic and internally consistent
+- [ ] Add a compact benchmark-runner and debug-report workflow
+  - [ ] Load jobs and resumes from the packaged fixture directories
+  - [ ] Select benchmark families and repetition count
+  - [ ] Run analyses sequentially with progress and elapsed time
+  - [ ] Capture Pass 1 requirements and full Pass 2 results
+  - [ ] Preserve failures without stopping the queue
+  - [ ] Allow cancellation
+  - [ ] Export or copy a compact report
 - [ ] Add a compact debug-report workflow that captures requirements, statuses, severities, matched bullets, and final score
 - [ ] Run each benchmark repeatedly and record the observed variation
 - [ ] Audit Pass 1 independently

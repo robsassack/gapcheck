@@ -1,0 +1,51 @@
+Jordan Lee
+Chicago, IL
+
+PRODUCT OPERATIONS MANAGER
+Brightline Care Software | 2022-2026
+
+- Led the operating side of three product portfolios for a care-management
+  platform used by regional health systems and insurance partners.
+- Introduced a structured intake workflow that consolidated requests from sales,
+  support, and implementation, cutting duplicate submissions by 35 percent.
+- Built Looker dashboards with SQL to track activation, feature adoption, and
+  workflow completion after releases.
+- Paired usage trends with interview notes and support themes to explain why
+  customers abandoned a new referral workflow and recommend corrective changes.
+- Owned readiness reviews for monthly releases, bringing engineering, product,
+  design, training, support, and implementation leads together around risks and
+  unresolved dependencies.
+- Created reusable Jira templates and Notion playbooks for beta enrollment,
+  launch approvals, customer communications, and post-release follow-up.
+- Prepared short decision memos for directors that distinguished confirmed
+  findings from assumptions and identified decisions requiring escalation.
+- Facilitated quarterly planning and roadmap-review sessions, recording owners,
+  deadlines, tradeoffs, and unresolved questions.
+- Coordinated corrective action when early usage data and customer reports
+  revealed confusion in a clinical scheduling feature.
+- Supported enterprise implementations with security, compliance, and clinical
+  operations stakeholders in a regulated healthcare environment.
+- Managed priorities independently across concurrent launches and traveled to
+  customer workshops and company planning sessions several times each year.
+
+PRODUCT OPERATIONS ANALYST
+Fieldstone Workflow Systems | 2019-2022
+
+- Analyzed CRM exports, implementation records, support conversations, and
+  product telemetry for a B2B workflow product serving enterprise customers.
+- Used advanced spreadsheets for capacity planning, cohort comparisons,
+  scenario models, and weekly operational reporting.
+- Maintained a Tableau dashboard that helped product managers compare requests
+  across customer segments instead of prioritizing the loudest account.
+- Redesigned the feedback-triage process and established service levels for
+  reviewing, grouping, and routing customer-reported problems.
+- Coordinated pilot programs and release retrospectives across two agile product
+  teams using Jira and Confluence.
+- Wrote implementation summaries and enablement notes for customer-facing teams
+  before major releases.
+- Investigated inconsistent data across billing, CRM, and analytics systems and
+  clearly documented the limitations of the resulting analysis.
+
+EDUCATION
+
+Bachelor of Business Administration, Operations and Information Systems
