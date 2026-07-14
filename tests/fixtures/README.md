@@ -121,10 +121,34 @@ Reload the unpacked extension after code or fixture changes, then open:
 chrome-extension://<extension-id>/tests/benchmark-runner.html
 ```
 
-Choose one or both benchmark families and a repetition count. The runner loads
-the packaged fixtures, uses the same resume parser as the options page, runs
-each comparison sequentially, and leaves the resume saved in GapCheck
-unchanged. Keep the runner page open and the computer awake until the queue
+Choose one or both benchmark families, one or more resume cases, a test mode,
+and a repetition count. The runner loads the packaged fixtures, uses the same
+resume parser as the options page, runs each model call sequentially, and leaves
+the resume saved in GapCheck unchanged. Resume-case selection makes it possible
+to rerun only strong, medium, or clear-mismatch inputs when diagnosing a
+specific failure. Pass 1-only mode ignores the resume-case selection.
+
+The available modes are:
+
+- **Controlled comparison (recommended):** run Pass 1 once per family and
+  repetition, then reuse those requirements for all three resumes. Use this to
+  compare strong, medium, and mismatch scores fairly while still observing
+  Pass 1 variation between repetitions.
+- **Full-pipeline variation:** run a fresh Pass 1 and Pass 2 for every resume.
+  Use this to measure the same end-to-end variation a normal analysis can show.
+- **Pass 1 audit only:** repeat requirement extraction without running Pass 2.
+  Use this to inspect missing must-haves, duplicated requirements, grouping, and
+  extraction stability.
+- **Pass 2 audit with pinned requirements:** run Pass 1 once per family, then
+  reuse that one requirement set across every resume and repetition. Use this
+  to isolate classification and evidence-selection variation.
+
+Pass 2 automatically rejects and retries responses where covered or partial
+matches cite no evidence, gap matches cite evidence, or a cited bullet does not
+exactly exist in the supplied resume. If the retry still assigns covered or
+partial without evidence, that item is conservatively normalized to a gap. Gap
+evidence is removed after retry. Fabricated or unrecognized bullets remain hard
+failures. Keep the runner page open and the computer awake until the queue
 finishes.
 
 Cancellation takes effect after the current analysis finishes. Completed and

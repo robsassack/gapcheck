@@ -120,25 +120,46 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
     - [x] Document acceptable classification variation
     - [x] Document clear regression signals
   - [x] Confirm each fixture is realistic and internally consistent
-- [ ] Add a compact benchmark-runner and debug-report workflow
+- [x] Add a compact benchmark-runner and debug-report workflow
   - [x] Load jobs and resumes from the packaged fixture directories
   - [x] Select benchmark families and repetition count
+  - [x] Select targeted strong, medium, or clear-mismatch resume cases
+  - [x] Support controlled, full-pipeline, Pass 1-only, and pinned Pass 2 test modes
   - [x] Run analyses sequentially with progress and elapsed time
   - [x] Capture Pass 1 requirements and full Pass 2 results
   - [x] Preserve individual analysis failures without stopping the queue
   - [x] Allow cancellation after the current analysis
   - [x] Copy a compact JSON or Markdown report
-  - [ ] Run the benchmark runner in Chrome and verify a complete queue
+  - [x] Run the benchmark runner in Chrome and verify a complete queue
 - [ ] Run each benchmark repeatedly and record the observed variation
+  - [x] Record the initial three-repetition Web Developer controlled-comparison baseline
+    - [x] Pass 1 returned the same 11 grouped requirements in every repetition
+    - [x] Strong scored 100, 95, and 95; medium scored 68, 68, and 73; clear mismatch scored 27, 14, and 32
+    - [x] Evidence IDs eliminated exact-copy failures, but irrelevant real bullets still received credit
+  - [ ] Record a comparable Product Operations baseline
 - [ ] Audit Pass 1 independently
+  - [x] Label explicit source bullets and preserve wrapped compound bullets as single extraction candidates
   - [ ] Compare extracted requirements across repeated runs
   - [ ] Check for missing must-haves, duplicated requirements, and unstable grouping
 - [ ] Audit Pass 2 independently
+  - [x] Reference resume evidence with code-owned bullet IDs and map valid IDs back to original bullet text
+  - [x] Reject and retry unsupported or unrecognized matched-bullet evidence
+  - [x] After retry, normalize unsupported statuses conservatively while rejecting fabricated bullets
+  - [x] Normalize severity deterministically so covered uses `null` and missing partial/gap severity defaults to `medium`
   - [ ] Check explicit resume evidence is not classified as a gap
   - [ ] Check transferable evidence is consistently distinguished from direct evidence
   - [ ] Check cited resume bullets genuinely support each classification
 - [ ] Refine the prompt only for systematic errors reproduced across the benchmark set
+  - [ ] Make Pass 2 select and validate evidence before assigning a status
+  - [ ] Require evidence to demonstrate the same core capability, work domain, or a clearly established equivalent
+  - [ ] Remove or tightly qualify the instruction to prefer partial over gap
+  - [ ] Keep genuinely adjacent and transferable experience eligible for partial credit
 - [ ] Improve evidence selection and matched-bullet relevance
+  - [ ] Treat unrelated-domain activity and generic word overlap as no evidence
+  - [ ] Prevent names, contact details, employer names, and job titles from serving as the sole evidence for a match
+  - [ ] Require full or nearly full evidence before marking a compound requirement covered
+  - [ ] Re-run the Web Developer benchmarks and confirm warehouse evidence no longer supports web-specific requirements
+  - [ ] Re-run Product Operations to confirm the refinement does not suppress legitimate transferable evidence
 - [ ] Evaluate severity-weighted scoring
   - [ ] Pin a proposed formula in the plan before changing code
   - [ ] Compare the current and proposed formulas against every benchmark

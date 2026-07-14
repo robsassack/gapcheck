@@ -43,8 +43,8 @@ Web Developer benchmarks. After loading or reloading the unpacked extension:
    chrome-extension://<extension-id>/tests/benchmark-runner.html
    ```
 
-3. Open the resulting URL in Chrome, select the benchmark families and
-   repetition count, and click Run benchmarks.
+3. Open the resulting URL in Chrome, select the benchmark families, resume
+   cases, test mode, and repetition count, and click Run benchmarks.
 
 Each Nano analysis can take one to two minutes. Keep the runner page open and
 the computer awake until the queue finishes. See the

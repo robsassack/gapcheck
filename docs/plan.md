@@ -100,9 +100,12 @@ Expressed as a percentage (e.g. `overallScore = Math.round(sum / matches.length 
 
 **Schema details to pin down before building:**
 - `matchedBullets` is a `string[]`, not a single nullable string — a requirement may be supported by two weaker bullets together, and an empty array is cleaner to handle than `null`.
+- Keep `matchedBullets` as the application-facing result, but use compact code-owned `matchedBulletIds` in the model-facing Pass 2 schema. Constrain those IDs to the supplied resume evidence and map them back to the original bullet strings after validation so the model never has to reproduce full evidence text exactly.
 - `severity` should be a nullable field present on every item (not conditionally present), since the JSON Schema passed to `responseConstraint` wants a consistent shape across all array items. Use `null` for covered requirements.
 - The severity scale is pinned as `low | medium | high`, and applies to `partial` matches as well as `gap` matches — a partial match on a "must-have" requirement is more significant than a partial on a "nice-to-have."
+- Normalize severity deterministically in code before validating Pass 2 output: `covered` always becomes `null`; `partial` or `gap` with a missing or `null` severity becomes `medium`; and valid model-provided `low | medium | high` values remain unchanged. This normalization does not affect the current status-only score.
 - Pass 1's schema should set `maxItems: 20` on the `requirements[]` array to keep Pass 2's input bounded.
+- Before Pass 1, label detected source bullets and join their wrapped continuation lines. The extraction prompt treats each label as indivisible and returns at most one requirement from each source bullet, preserving compound `and` / `or` qualifications instead of splitting them into separate requirements.
 - Pass 2's schema caps `matches[]` at 20 to mirror Pass 1's requirement cap. The system prompt explicitly instructs the model to "return one `matches` item for each provided requirement, in the same order," since JSON Schema alone can constrain shape but not this kind of one-to-one correspondence.
 
 The results UI derives its sections by filtering `matches[]`: `covered` = `status === "covered"`, `gaps` = `status === "gap"`, and `partial` gets its own third visual bucket rather than being folded into either of the other two.

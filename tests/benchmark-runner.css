@@ -101,6 +101,34 @@ fieldset label {
   margin-top: 8px;
 }
 
+.mode-options {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mode-options label {
+  align-items: flex-start;
+}
+
+.mode-options input {
+  margin-top: 3px;
+}
+
+.mode-options span {
+  display: grid;
+  gap: 1px;
+}
+
+.mode-options strong {
+  font-size: 13px;
+}
+
+.mode-options small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .repetitions-field {
   align-items: center;
   display: flex;

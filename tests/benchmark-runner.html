@@ -26,8 +26,35 @@
         <label><input type="checkbox" name="family" value="web-developer" checked /> Web Developer</label>
       </fieldset>
 
+      <fieldset>
+        <legend>Resume cases</legend>
+        <label><input type="checkbox" name="resumeCase" value="strong" checked /> Strong</label>
+        <label><input type="checkbox" name="resumeCase" value="medium" checked /> Medium</label>
+        <label><input type="checkbox" name="resumeCase" value="mismatch" checked /> Clear mismatch</label>
+      </fieldset>
+
+      <fieldset class="mode-options">
+        <legend>Test mode</legend>
+        <label>
+          <input type="radio" name="runMode" value="controlled" checked />
+          <span><strong>Controlled comparison</strong><small>Pass 1 once per family/repetition, then compare all three resumes.</small></span>
+        </label>
+        <label>
+          <input type="radio" name="runMode" value="full-pipeline" />
+          <span><strong>Full-pipeline variation</strong><small>Fresh Pass 1 and Pass 2 for every resume, matching normal product behavior.</small></span>
+        </label>
+        <label>
+          <input type="radio" name="runMode" value="pass1-only" />
+          <span><strong>Pass 1 audit only</strong><small>Repeat requirement extraction without running resume comparisons.</small></span>
+        </label>
+        <label>
+          <input type="radio" name="runMode" value="pass2-pinned" />
+          <span><strong>Pass 2 audit with pinned requirements</strong><small>Pass 1 once per family, then reuse it across every resume and repetition.</small></span>
+        </label>
+      </fieldset>
+
       <label class="repetitions-field" for="repetitions">
-        Repetitions per comparison
+        Repetitions
         <input id="repetitions" type="number" min="1" max="10" value="3" />
       </label>
 
@@ -35,7 +62,7 @@
         <button id="runBtn" class="primary" type="button">Run benchmarks</button>
         <button id="cancelBtn" type="button" disabled>Cancel after current analysis</button>
       </div>
-      <p class="hint">Each full analysis may take one to two minutes. Keep this page open while the queue runs.</p>
+      <p id="modeHint" class="hint">Recommended for comparing strong, medium, and mismatch results fairly.</p>
     </section>
 
     <section class="card progress-card" aria-labelledby="runProgressTitle">
@@ -45,7 +72,7 @@
       </div>
       <p id="status" role="status">Ready.</p>
       <progress id="progress" value="0" max="1"></progress>
-      <p id="progressCount" class="hint">0 of 0 comparisons completed</p>
+      <p id="progressCount" class="hint">0 of 0 runs completed</p>
     </section>
 
     <section class="card" aria-labelledby="resultsTitle">

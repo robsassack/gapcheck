@@ -21,6 +21,31 @@ const BENCHMARK_FAMILIES = Object.freeze([
   },
 ]);
 
+const RUN_MODES = Object.freeze({
+  controlled: {
+    label: "Controlled comparison",
+    pass1Strategy: "once-per-family-repetition",
+    hint: "Recommended for comparing strong, medium, and mismatch results fairly.",
+  },
+  "full-pipeline": {
+    label: "Full-pipeline variation",
+    pass1Strategy: "once-per-resume-analysis",
+    hint: "Measures the complete experience, including Pass 1 variation between resume analyses.",
+  },
+  "pass1-only": {
+    label: "Pass 1 audit only",
+    pass1Strategy: "pass1-only",
+    hint: "Measures requirement extraction stability without running Pass 2.",
+  },
+  "pass2-pinned": {
+    label: "Pass 2 audit with pinned requirements",
+    pass1Strategy: "once-per-family",
+    hint: "Isolates Pass 2 variation by reusing one requirement set for every repetition.",
+  },
+});
+
+/** @typedef {"controlled" | "full-pipeline" | "pass1-only" | "pass2-pinned"} RunModeId */
+
 /**
  * @typedef {object} BenchmarkCase
  * @property {string} id
@@ -44,8 +69,11 @@ const BENCHMARK_FAMILIES = Object.freeze([
  * @property {string} caseId
  * @property {string} caseLabel
  * @property {number} repetition
- * @property {{ min: number, max: number }} expectedRange
+ * @property {{ min: number, max: number } | null} expectedRange
+ * @property {"pass1" | "pass2"} phase
  * @property {string} startedAt
+ * @property {number} pass1DurationMs
+ * @property {string | null} pass1Error
  * @property {number} durationMs
  * @property {number | null} score
  * @property {string[]} requirements
@@ -71,6 +99,7 @@ const cancelBtn = /** @type {HTMLButtonElement} */ (document.getElementById("can
 const copyJsonBtn = /** @type {HTMLButtonElement} */ (document.getElementById("copyJsonBtn"));
 const copyMarkdownBtn = /** @type {HTMLButtonElement} */ (document.getElementById("copyMarkdownBtn"));
 const repetitionsInput = /** @type {HTMLInputElement} */ (document.getElementById("repetitions"));
+const modeHint = /** @type {HTMLParagraphElement} */ (document.getElementById("modeHint"));
 const statusText = /** @type {HTMLParagraphElement} */ (document.getElementById("status"));
 const elapsedText = /** @type {HTMLSpanElement} */ (document.getElementById("elapsed"));
 const progress = /** @type {HTMLProgressElement} */ (document.getElementById("progress"));
@@ -87,6 +116,8 @@ let results = [];
 /** @type {string[]} */
 let orderingWarnings = [];
 let lastRunCancelled = false;
+/** @type {RunModeId} */
+let lastRunMode = "controlled";
 
 /**
  * @param {string} message
@@ -127,6 +158,42 @@ function getSelectedFamilies() {
 }
 
 /**
+ * @returns {Set<string>}
+ */
+function getSelectedCaseIds() {
+  return new Set(
+    Array.from(document.querySelectorAll('input[name="resumeCase"]:checked')).map((input) => {
+      return /** @type {HTMLInputElement} */ (input).value;
+    })
+  );
+}
+
+/**
+ * @returns {RunModeId}
+ */
+function getSelectedMode() {
+  const selected = /** @type {HTMLInputElement | null} */ (
+    document.querySelector('input[name="runMode"]:checked')
+  );
+  const value = selected?.value;
+
+  if (value && Object.prototype.hasOwnProperty.call(RUN_MODES, value)) {
+    return /** @type {RunModeId} */ (value);
+  }
+
+  return "controlled";
+}
+
+function updateModeControls() {
+  const mode = getSelectedMode();
+  modeHint.textContent = RUN_MODES[mode].hint;
+
+  document.querySelectorAll('input[name="resumeCase"]').forEach((input) => {
+    /** @type {HTMLInputElement} */ (input).disabled = mode === "pass1-only";
+  });
+}
+
+/**
  * @param {string} path
  * @returns {Promise<string>}
  */
@@ -152,17 +219,25 @@ function appendResultRow(result) {
 
   const row = document.createElement("tr");
   const scoreInRange =
-    result.score !== null && result.score >= result.expectedRange.min && result.score <= result.expectedRange.max;
-  row.dataset.state = result.error ? "error" : scoreInRange ? "ok" : "warn";
+    result.expectedRange !== null &&
+    result.score !== null &&
+    result.score >= result.expectedRange.min &&
+    result.score <= result.expectedRange.max;
+  const resultError = result.pass1Error || result.error;
+  row.dataset.state = resultError
+    ? "error"
+    : result.phase === "pass1" || scoreInRange
+      ? "ok"
+      : "warn";
 
   const values = [
     result.familyLabel,
     String(result.repetition),
     result.caseLabel,
     result.score === null ? "—" : `${result.score}%`,
-    `${result.expectedRange.min}-${result.expectedRange.max}%`,
-    formatDuration(result.durationMs),
-    result.error || (result.warnings.length > 0 ? result.warnings.join(" ") : "Recorded"),
+    result.expectedRange ? `${result.expectedRange.min}-${result.expectedRange.max}%` : "—",
+    `P1 ${formatDuration(result.pass1DurationMs)} / P2 ${formatDuration(result.durationMs)}`,
+    resultError || (result.warnings.length > 0 ? result.warnings.join(" ") : "Recorded"),
   ];
 
   values.forEach((value, index) => {
@@ -189,7 +264,13 @@ function findOrderingWarnings() {
   const warnings = [];
 
   BENCHMARK_FAMILIES.forEach((family) => {
-    const familyResults = results.filter((result) => result.familyId === family.id && !result.error);
+    const familyResults = results.filter(
+      (result) =>
+        result.familyId === family.id &&
+        result.phase === "pass2" &&
+        !result.pass1Error &&
+        !result.error
+    );
     const repetitions = new Set(familyResults.map((result) => result.repetition));
 
     repetitions.forEach((repetition) => {
@@ -241,13 +322,15 @@ function renderReportWarnings() {
 }
 
 /**
- * @returns {{ version: number, createdAt: string, cancelled: boolean, orderingWarnings: string[], runs: BenchmarkResult[] }}
+ * @returns {{ version: number, createdAt: string, cancelled: boolean, mode: RunModeId, pass1Strategy: string, orderingWarnings: string[], runs: BenchmarkResult[] }}
  */
 function buildJsonReport() {
   return {
-    version: 1,
+    version: 3,
     createdAt: new Date().toISOString(),
     cancelled: lastRunCancelled,
+    mode: lastRunMode,
+    pass1Strategy: RUN_MODES[lastRunMode].pass1Strategy,
     orderingWarnings,
     runs: results,
   };
@@ -262,6 +345,7 @@ function buildMarkdownReport() {
     "",
     `Generated: ${new Date().toISOString()}`,
     `Cancelled: ${lastRunCancelled ? "yes" : "no"}`,
+    `Mode: ${RUN_MODES[lastRunMode].label}`,
     "",
     "## Summary",
     "",
@@ -270,9 +354,12 @@ function buildMarkdownReport() {
   ];
 
   results.forEach((result) => {
-    const outcome = result.error || (result.warnings.length > 0 ? result.warnings.join(" ") : "Recorded");
+    const outcome =
+      result.pass1Error ||
+      result.error ||
+      (result.warnings.length > 0 ? result.warnings.join(" ") : "Recorded");
     lines.push(
-      `| ${result.familyLabel} | ${result.repetition} | ${result.caseLabel} | ${result.score ?? "—"} | ${result.expectedRange.min}-${result.expectedRange.max} | ${formatDuration(result.durationMs)} | ${outcome} |`
+      `| ${result.familyLabel} | ${result.repetition} | ${result.caseLabel} | ${result.score ?? "—"} | ${result.expectedRange ? `${result.expectedRange.min}-${result.expectedRange.max}` : "—"} | P1 ${formatDuration(result.pass1DurationMs)} / P2 ${formatDuration(result.durationMs)} | ${outcome} |`
     );
   });
 
@@ -289,8 +376,10 @@ function buildMarkdownReport() {
       `### ${result.familyLabel} / ${result.caseLabel} / repetition ${result.repetition}`,
       "",
       `- Score: ${result.score === null ? "not available" : `${result.score}%`}`,
-      `- Duration: ${formatDuration(result.durationMs)}`,
-      `- Error: ${result.error || "none"}`,
+      `- Pass 1 duration: ${formatDuration(result.pass1DurationMs)}`,
+      `- Pass 2 duration: ${formatDuration(result.durationMs)}`,
+      `- Pass 1 error: ${result.pass1Error || "none"}`,
+      `- Pass 2 error: ${result.error || "none"}`,
       `- Summary: ${result.summary || "none"}`,
       "",
       "Requirements and matches:",
@@ -331,11 +420,18 @@ async function runBenchmarks() {
   }
 
   const selectedFamilies = getSelectedFamilies();
+  const selectedCaseIds = getSelectedCaseIds();
+  const mode = getSelectedMode();
   const repetitions = Math.max(1, Math.min(10, Number.parseInt(repetitionsInput.value, 10) || 1));
   repetitionsInput.value = String(repetitions);
 
   if (selectedFamilies.length === 0) {
     setStatus("Select at least one benchmark family.", "error");
+    return;
+  }
+
+  if (mode !== "pass1-only" && selectedCaseIds.size === 0) {
+    setStatus("Select at least one resume case.", "error");
     return;
   }
 
@@ -350,6 +446,7 @@ async function runBenchmarks() {
   isRunning = true;
   cancelRequested = false;
   lastRunCancelled = false;
+  lastRunMode = mode;
   results = [];
   orderingWarnings = [];
   resultsBody.innerHTML = '<tr class="empty-row"><td colspan="7">Waiting for the first result…</td></tr>';
@@ -359,19 +456,148 @@ async function runBenchmarks() {
   cancelBtn.disabled = false;
   copyJsonBtn.disabled = true;
   copyMarkdownBtn.disabled = true;
-  document.querySelectorAll('input[name="family"], #repetitions').forEach((input) => {
+  document.querySelectorAll('input[name="family"], input[name="resumeCase"], input[name="runMode"], #repetitions').forEach((input) => {
     /** @type {HTMLInputElement} */ (input).disabled = true;
   });
 
-  const total =
-    selectedFamilies.reduce((sum, family) => sum + family.cases.length, 0) * repetitions;
+  const comparisonsPerRepetition = selectedFamilies.reduce(
+    (sum, family) => sum + family.cases.filter((benchmarkCase) => selectedCaseIds.has(benchmarkCase.id)).length,
+    0
+  );
+  const total = mode === "pass1-only" ? selectedFamilies.length * repetitions : comparisonsPerRepetition * repetitions;
   let completed = 0;
   progress.max = total;
   progress.value = 0;
-  progressCount.textContent = `0 of ${total} comparisons completed`;
+  progressCount.textContent = `0 of ${total} runs completed`;
   runStartedAt = Date.now();
   updateElapsed();
   elapsedTimer = window.setInterval(updateElapsed, 1000);
+
+  /**
+   * @param {BenchmarkResult} result
+   */
+  function recordResult(result) {
+    results.push(result);
+    appendResultRow(result);
+    completed += 1;
+    progress.value = completed;
+    progressCount.textContent = `${completed} of ${total} runs completed`;
+  }
+
+  /**
+   * @param {BenchmarkFamily} family
+   * @param {number} repetition
+   * @param {string} jobText
+   * @param {string} context
+   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: string[], error: string | null }>}
+   */
+  async function executePass1(family, repetition, jobText, context) {
+    const startedAt = new Date();
+    const startedMs = Date.now();
+    /** @type {string[]} */
+    let requirements = [];
+    let error = null;
+
+    try {
+      setStatus(`${family.label}, repetition ${repetition}: extracting ${context} requirements…`);
+      requirements = await nano.extractRequirementsFromJobText(jobText);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+
+    return {
+      startedAt: startedAt.toISOString(),
+      durationMs: Date.now() - startedMs,
+      requirements,
+      error,
+    };
+  }
+
+  /**
+   * @param {BenchmarkFamily} family
+   * @param {BenchmarkCase} benchmarkCase
+   * @param {number} repetition
+   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null }} pass1
+   */
+  function recordPass1Failure(family, benchmarkCase, repetition, pass1) {
+    recordResult({
+      familyId: family.id,
+      familyLabel: family.label,
+      caseId: benchmarkCase.id,
+      caseLabel: benchmarkCase.label,
+      repetition,
+      phase: "pass2",
+      expectedRange: { min: benchmarkCase.min, max: benchmarkCase.max },
+      startedAt: pass1.startedAt,
+      pass1DurationMs: pass1.durationMs,
+      pass1Error: `Pass 1 failed: ${pass1.error || "Unknown error"}`,
+      durationMs: 0,
+      score: null,
+      requirements: pass1.requirements,
+      matches: [],
+      summary: "",
+      error: null,
+      warnings: [],
+    });
+  }
+
+  /**
+   * @param {BenchmarkFamily} family
+   * @param {BenchmarkCase} benchmarkCase
+   * @param {number} repetition
+   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null }} pass1
+   * @param {string[]} resumeBullets
+   */
+  async function executePass2(family, benchmarkCase, repetition, pass1, resumeBullets) {
+    const startedAt = new Date();
+    const startedMs = Date.now();
+    /** @type {BenchmarkResult["matches"]} */
+    let matches = [];
+    let summary = "";
+    let score = null;
+    let error = null;
+    /** @type {string[]} */
+    const warnings = [];
+
+    try {
+      setStatus(
+        `${family.label}, repetition ${repetition}: running Pass 2 for ${benchmarkCase.label.toLowerCase()} match…`
+      );
+      const analysis = await nano.analyzeRequirementsWithResumeBullets(
+        pass1.requirements,
+        resumeBullets
+      );
+      matches = analysis.matches;
+      summary = analysis.summary;
+      score = nano.computeOverallScore(matches);
+
+      if (score < benchmarkCase.min || score > benchmarkCase.max) {
+        warnings.push(`Outside target range (${benchmarkCase.min}-${benchmarkCase.max}%).`);
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+
+    recordResult({
+      familyId: family.id,
+      familyLabel: family.label,
+      caseId: benchmarkCase.id,
+      caseLabel: benchmarkCase.label,
+      repetition,
+      phase: "pass2",
+      expectedRange: { min: benchmarkCase.min, max: benchmarkCase.max },
+      startedAt: startedAt.toISOString(),
+      pass1DurationMs: pass1.durationMs,
+      pass1Error: null,
+      durationMs: Date.now() - startedMs,
+      score,
+      requirements: pass1.requirements,
+      matches,
+      summary,
+      error,
+      warnings,
+    });
+  }
 
   try {
     setStatus("Checking Gemini Nano availability…");
@@ -385,78 +611,127 @@ async function runBenchmarks() {
       }
 
       const jobText = await loadFixture(`${family.id}/job.txt`);
+      const familyCases = family.cases.filter((benchmarkCase) =>
+        selectedCaseIds.has(benchmarkCase.id)
+      );
       /** @type {Map<string, string[]>} */
       const resumeBulletsByFile = new Map();
 
-      for (const benchmarkCase of family.cases) {
-        const resumeText = await loadFixture(`${family.id}/${benchmarkCase.file}`);
-        resumeBulletsByFile.set(benchmarkCase.file, resumeParser.splitResumeIntoBullets(resumeText));
+      if (mode !== "pass1-only") {
+        for (const benchmarkCase of familyCases) {
+          const resumeText = await loadFixture(`${family.id}/${benchmarkCase.file}`);
+          resumeBulletsByFile.set(
+            benchmarkCase.file,
+            resumeParser.splitResumeIntoBullets(resumeText)
+          );
+        }
       }
 
-      for (let repetition = 1; repetition <= repetitions; repetition += 1) {
-        for (const benchmarkCase of family.cases) {
+      if (mode === "pass1-only") {
+        for (let repetition = 1; repetition <= repetitions && !cancelRequested; repetition += 1) {
+          const pass1 = await executePass1(family, repetition, jobText, "audit");
+          recordResult({
+            familyId: family.id,
+            familyLabel: family.label,
+            caseId: "pass1",
+            caseLabel: "Pass 1 only",
+            repetition,
+            phase: "pass1",
+            expectedRange: null,
+            startedAt: pass1.startedAt,
+            pass1DurationMs: pass1.durationMs,
+            pass1Error: pass1.error ? `Pass 1 failed: ${pass1.error}` : null,
+            durationMs: 0,
+            score: null,
+            requirements: pass1.requirements,
+            matches: [],
+            summary: "",
+            error: null,
+            warnings: [],
+          });
+        }
+
+        continue;
+      }
+
+      if (mode === "pass2-pinned") {
+        const pinnedPass1 = await executePass1(family, 1, jobText, "pinned");
+
+        for (let repetition = 1; repetition <= repetitions && !cancelRequested; repetition += 1) {
+          for (const benchmarkCase of familyCases) {
+            if (cancelRequested) {
+              break;
+            }
+
+            if (pinnedPass1.error) {
+              recordPass1Failure(family, benchmarkCase, repetition, pinnedPass1);
+            } else {
+              await executePass2(
+                family,
+                benchmarkCase,
+                repetition,
+                pinnedPass1,
+                resumeBulletsByFile.get(benchmarkCase.file) || []
+              );
+            }
+          }
+        }
+
+        continue;
+      }
+
+      for (let repetition = 1; repetition <= repetitions && !cancelRequested; repetition += 1) {
+        if (mode === "controlled") {
+          const sharedPass1 = await executePass1(family, repetition, jobText, "shared");
+
+          for (const benchmarkCase of familyCases) {
+            if (cancelRequested) {
+              break;
+            }
+
+            if (sharedPass1.error) {
+              recordPass1Failure(family, benchmarkCase, repetition, sharedPass1);
+            } else {
+              await executePass2(
+                family,
+                benchmarkCase,
+                repetition,
+                sharedPass1,
+                resumeBulletsByFile.get(benchmarkCase.file) || []
+              );
+            }
+          }
+
+          continue;
+        }
+
+        for (const benchmarkCase of familyCases) {
           if (cancelRequested) {
             break;
           }
 
-          const startedAt = new Date();
-          const startedMs = Date.now();
-          /** @type {string[]} */
-          let requirements = [];
-          /** @type {BenchmarkResult["matches"]} */
-          let matches = [];
-          let summary = "";
-          let score = null;
-          let error = null;
-          /** @type {string[]} */
-          const warnings = [];
+          const freshPass1 = await executePass1(
+            family,
+            repetition,
+            jobText,
+            `${benchmarkCase.label.toLowerCase()}-match`
+          );
 
-          try {
-            setStatus(
-              `${family.label}, repetition ${repetition}: extracting requirements for ${benchmarkCase.label.toLowerCase()} match…`
-            );
-            requirements = await nano.extractRequirementsFromJobText(jobText);
-
-            setStatus(
-              `${family.label}, repetition ${repetition}: analyzing ${benchmarkCase.label.toLowerCase()} match…`
-            );
-            const analysis = await nano.analyzeRequirementsWithResumeBullets(
-              requirements,
-              resumeBulletsByFile.get(benchmarkCase.file) || []
-            );
-            matches = analysis.matches;
-            summary = analysis.summary;
-            score = nano.computeOverallScore(matches);
-
-            if (score < benchmarkCase.min || score > benchmarkCase.max) {
-              warnings.push(`Outside target range (${benchmarkCase.min}-${benchmarkCase.max}%).`);
-            }
-          } catch (err) {
-            error = err instanceof Error ? err.message : String(err);
+          if (cancelRequested) {
+            break;
           }
 
-          const result = {
-            familyId: family.id,
-            familyLabel: family.label,
-            caseId: benchmarkCase.id,
-            caseLabel: benchmarkCase.label,
-            repetition,
-            expectedRange: { min: benchmarkCase.min, max: benchmarkCase.max },
-            startedAt: startedAt.toISOString(),
-            durationMs: Date.now() - startedMs,
-            score,
-            requirements,
-            matches,
-            summary,
-            error,
-            warnings,
-          };
-
-          results.push(result);
-          appendResultRow(result);
-          completed += 1;
-          progress.value = completed;
-          progressCount.textContent = `${completed} of ${total} comparisons completed`;
+          if (freshPass1.error) {
+            recordPass1Failure(family, benchmarkCase, repetition, freshPass1);
+          } else {
+            await executePass2(
+              family,
+              benchmarkCase,
+              repetition,
+              freshPass1,
+              resumeBulletsByFile.get(benchmarkCase.file) || []
+            );
+          }
         }
       }
     }
@@ -465,8 +740,8 @@ async function runBenchmarks() {
     renderReportWarnings();
     setStatus(
       cancelRequested
-        ? `Cancelled after ${completed} of ${total} comparisons.`
-        : `Completed ${completed} comparisons.`,
+        ? `Cancelled after ${completed} of ${total} runs.`
+        : `Completed ${completed} runs in ${RUN_MODES[mode].label} mode.`,
       "ok"
     );
   } catch (err) {
@@ -479,12 +754,18 @@ async function runBenchmarks() {
     cancelBtn.disabled = true;
     copyJsonBtn.disabled = results.length === 0;
     copyMarkdownBtn.disabled = results.length === 0;
-    document.querySelectorAll('input[name="family"], #repetitions').forEach((input) => {
+    document.querySelectorAll('input[name="family"], input[name="resumeCase"], input[name="runMode"], #repetitions').forEach((input) => {
       /** @type {HTMLInputElement} */ (input).disabled = false;
     });
+    updateModeControls();
   }
 }
 
+document.querySelectorAll('input[name="runMode"]').forEach((input) => {
+  input.addEventListener("change", updateModeControls);
+});
+
+updateModeControls();
 runBtn.addEventListener("click", runBenchmarks);
 
 cancelBtn.addEventListener("click", () => {
