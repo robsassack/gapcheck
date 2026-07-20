@@ -161,6 +161,7 @@ Version 1.0 is implemented in the unpacked extension. Phases 0–5 of the develo
 - A results view with the code-owned score, summary, and expanded Covered, Partial, and Gaps sections
 - Model availability, download progress, malformed-output retry, and actionable empty/error states
 - Local-only resume storage and analysis with no API keys or server calls
+- README includes a side panel screenshot from `assets/Screenshot_20260720_004538.png`
 
 The v1 score remains directional because Nano's extracted requirements and classifications can vary between runs. The deterministic scoring function produces the same score for the same `matches[]`; improving model consistency is the first post-v1 phase.
 
