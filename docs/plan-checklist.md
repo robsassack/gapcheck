@@ -131,12 +131,18 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Allow cancellation after the current analysis
   - [x] Copy a compact JSON or Markdown report
   - [x] Run the benchmark runner in Chrome and verify a complete queue
-- [ ] Run each benchmark repeatedly and record the observed variation
+- [x] Run each benchmark repeatedly and record the observed variation
   - [x] Record the initial three-repetition Web Developer controlled-comparison baseline
     - [x] Pass 1 returned the same 11 grouped requirements in every repetition
     - [x] Strong scored 100, 95, and 95; medium scored 68, 68, and 73; clear mismatch scored 27, 14, and 32
     - [x] Evidence IDs eliminated exact-copy failures, but irrelevant real bullets still received credit
-  - [ ] Record a comparable Product Operations baseline
+  - [x] Record a comparable Product Operations baseline
+    - [x] Pass 1 returned the same 20 requirements in every repetition, but over-selected example tasks and omitted experience, domain, and work-constraint qualifications
+    - [x] Medium scored 85 in every repetition and clear mismatch scored 0 in every repetition; medium exceeded its 40-70 target range
+    - [x] Strong failed all three repetitions because its Pass 2 response repeated an evidence ID after retry
+    - [x] Adjacent business-operations evidence received covered credit for several product- and software-context requirements
+    - [x] First refinement rerun scored strong 93, medium 83, and clear mismatch 0 in every repetition; malformed output was resolved, but medium remained over-credited
+    - [x] Final refinement rerun was stable and in range: strong 100, medium 68, and clear mismatch 0 in every repetition
 - [ ] Audit Pass 1 independently
   - [x] Label explicit source bullets and preserve wrapped compound bullets as single extraction candidates
   - [ ] Compare extracted requirements across repeated runs
@@ -149,17 +155,17 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [ ] Check explicit resume evidence is not classified as a gap
   - [ ] Check transferable evidence is consistently distinguished from direct evidence
   - [ ] Check cited resume bullets genuinely support each classification
-- [ ] Refine the prompt only for systematic errors reproduced across the benchmark set
-  - [ ] Make Pass 2 select and validate evidence before assigning a status
-  - [ ] Require evidence to demonstrate the same core capability, work domain, or a clearly established equivalent
-  - [ ] Remove or tightly qualify the instruction to prefer partial over gap
-  - [ ] Keep genuinely adjacent and transferable experience eligible for partial credit
+- [x] Refine the prompt only for systematic errors reproduced across the benchmark set
+  - [x] Make Pass 2 select and validate evidence before assigning a status
+  - [x] Require evidence to demonstrate the same core capability, work domain, or a clearly established equivalent
+  - [x] Remove or tightly qualify the instruction to prefer partial over gap
+  - [x] Keep genuinely adjacent and transferable experience eligible for partial credit
 - [ ] Improve evidence selection and matched-bullet relevance
-  - [ ] Treat unrelated-domain activity and generic word overlap as no evidence
-  - [ ] Prevent names, contact details, employer names, and job titles from serving as the sole evidence for a match
-  - [ ] Require full or nearly full evidence before marking a compound requirement covered
+  - [x] Treat unrelated-domain activity and generic word overlap as no evidence
+  - [x] Prevent names, contact details, employer names, and job titles from serving as the sole evidence for a match
+  - [x] Require full or nearly full evidence before marking a compound requirement covered
   - [ ] Re-run the Web Developer benchmarks and confirm warehouse evidence no longer supports web-specific requirements
-  - [ ] Re-run Product Operations to confirm the refinement does not suppress legitimate transferable evidence
+  - [x] Re-run Product Operations to confirm the refinement does not suppress legitimate transferable evidence
 - [ ] Evaluate severity-weighted scoring
   - [ ] Pin a proposed formula in the plan before changing code
   - [ ] Compare the current and proposed formulas against every benchmark

@@ -14,14 +14,19 @@ const MATCH_STATUS_SCORES = Object.freeze({
 const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Extract the most important concrete job requirements from the provided job posting.",
   `Return at most ${PASS_1_MAX_REQUIREMENTS} requirements.`,
+  "Rank candidates across the entire posting before choosing what to return; do not simply return the first requirements mentioned.",
   "If the posting contains more candidates, prioritize must-have qualifications, required skills, required experience levels, credentials, responsibilities, and explicit work constraints.",
   "After must-haves, include important preferred or nice-to-have qualifications when space remains.",
+  "Always preserve stated years of experience, required or preferred work domains, and location, schedule, or travel constraints when they affect candidate eligibility.",
+  "Broad responsibilities outrank example tasks and their individual substeps. Omit an example when a broader returned requirement already captures the same capability.",
+  "Do not fill every available item with responsibilities: when the posting contains both responsibilities and candidate qualifications, return a representative set of both.",
   "The input labels detected list items as SOURCE BULLET J1, J2, and so on.",
   "Return no more than one requirements item for each SOURCE BULLET label.",
   "Treat every labeled source bullet as indivisible: do not split tools, audiences, browsers, deliverables, alternatives, or concepts joined by and/or into separate requirements.",
   "Keep the combined meaning of a labeled bullet in one concise requirement, even when some parts are optional or alternatives.",
   "If prose and a list repeat or elaborate the same requirement, return one combined requirement rather than duplicates.",
   "Do not infer extra requirements from company context or example deliverables unless the posting presents them as qualifications or responsibilities.",
+  "Before finalizing, scan the entire posting again and replace lower-priority examples with any omitted experience threshold, named technical skill, work-domain qualification, or explicit work constraint.",
   "Write each requirement as a concise standalone string.",
   "Do not include benefits, company culture, generic marketing copy, or application instructions.",
 ].join(" ");
@@ -419,13 +424,18 @@ const PASS_2_ANALYSIS_SYSTEM_PROMPT = [
   "Do not penalize a resume for showing broader or more senior experience than the job requires.",
   "Return one matches item for each provided requirement, in the same order.",
   "Copy each requirement string exactly into its matches item.",
-  'Use status "covered" when the resume gives direct evidence of the required capability, including equivalent tools, transferable experience, or closely related domain work unless the requirement explicitly demands a specific credential, certification, platform, or years of experience.',
-  'Use status "partial" when the resume shows adjacent or incomplete evidence that a human reviewer would likely consider relevant, even if it does not fully prove the exact requirement.',
+  "For each requirement, first select only resume evidence that demonstrates the same core capability, work domain, or a clearly established equivalent; then assign the status from that selected evidence.",
+  'Use status "covered" only when the selected evidence directly demonstrates the full requirement or nearly all of it in the required context.',
+  'Use status "partial" when the resume shows adjacent, transferable, or incomplete evidence that is relevant but does not prove the full capability or required context.',
   'Use status "gap" only when the resume provides no meaningful evidence for the requirement.',
-  "Prefer partial over gap when there is credible related evidence.",
-  "A cited evidence entry must substantively demonstrate the requirement; vague word overlap or an unrelated generic activity is not evidence.",
+  "Do not award partial merely because some evidence is broadly related; it must demonstrate a meaningful portion of the core capability.",
+  "A cited evidence entry must substantively demonstrate the requirement. Generic word overlap, an unrelated-domain activity, a name, contact detail, employer name, or job title is not evidence by itself.",
   "For a requirement that names multiple capabilities, tools, environments, or audiences, use covered only when the evidence supports the full requirement or nearly all of it; use partial when the evidence supports only a subset.",
   "A requirement for a specific tool, platform, credential, or technical practice needs explicit evidence of that item or a clearly equivalent item. Generic documentation, handoffs, communication, organization, or process work is not technical-tool evidence.",
+  "Evidence for a named tool covers only the tool portion of a compound requirement; it does not prove agile-team, software-team, product, launch, customer, or enterprise context unless the evidence also establishes that context.",
+  "General business operations, project coordination, internal system rollout, or process improvement is transferable to product operations but does not by itself fully cover software-product, product-launch, feature-adoption, product-intake, or market-pattern work.",
+  "Apply that distinction literally: a general service-request intake process is partial for product or roadmap intake; an internal system rollout is partial for a product launch or multi-team release; a generic project-risk summary is partial for launch-risk reporting; and employee workflow findings are partial for customer or market-pattern analysis.",
+  "For a compound requirement with a list of sources, activities, stages, or stakeholder groups, do not infer the missing elements. Use partial when the evidence demonstrates only a few elements or substitutes a different work context.",
   "Personal projects and coursework can demonstrate technical capability, but do not treat them as professional, client, enterprise, or agency experience.",
   'Examples: HTML/CSS/JavaScript, TypeScript, React, Next.js, or front-end project work can cover general web-page or front-end development requirements; explicit Git, GitHub or GitLab version control, Azure DevOps Repos, repository, branch, commit, or pull-request evidence can cover Git collaboration requirements; support, ticketing, Agile, release coordination, or client-facing IT work can cover communication requirements.',
   "For browser, mobile, accessibility, performance, and SEO requirements, use partial when the resume shows related web development experience but does not explicitly name that practice.",
@@ -595,6 +605,47 @@ function normalizePass2Severity(value) {
         to: "medium",
       });
       candidate.severity = "medium";
+    }
+  });
+}
+
+/**
+ * Repeating a recognized evidence ID does not change the evidence supporting a
+ * match. Remove duplicates before validation rather than failing an otherwise
+ * usable analysis or spending the single retry on a harmless formatting error.
+ *
+ * @param {unknown} value
+ */
+function deduplicatePass2EvidenceIds(value) {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  const result = /** @type {{ matches?: unknown }} */ (value);
+
+  if (!Array.isArray(result.matches)) {
+    return;
+  }
+
+  result.matches.forEach((match, index) => {
+    if (!match || typeof match !== "object") {
+      return;
+    }
+
+    const candidate = /** @type {{ matchedBulletIds?: unknown }} */ (match);
+
+    if (!Array.isArray(candidate.matchedBulletIds)) {
+      return;
+    }
+
+    const deduplicated = [...new Set(candidate.matchedBulletIds)];
+
+    if (deduplicated.length !== candidate.matchedBulletIds.length) {
+      debugLog(`Pass 2 match ${index + 1} duplicate evidence IDs removed`, {
+        from: candidate.matchedBulletIds,
+        to: deduplicated,
+      });
+      candidate.matchedBulletIds = deduplicated;
     }
   });
 }
@@ -823,6 +874,7 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
       const parsedResult = parseModelJson(rawResult, "Pass 2");
 
       normalizePass2Severity(parsedResult);
+      deduplicatePass2EvidenceIds(parsedResult);
 
       if (isRetry) {
         normalizeRetryablePass2Evidence(parsedResult, resumeEvidenceById);
