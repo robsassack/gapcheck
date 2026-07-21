@@ -14,19 +14,26 @@ const MATCH_STATUS_SCORES = Object.freeze({
 const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Extract the most important concrete job requirements from the provided job posting.",
   `Return at most ${PASS_1_MAX_REQUIREMENTS} requirements.`,
-  "Rank candidates across the entire posting before choosing what to return; do not simply return the first requirements mentioned.",
-  "If the posting contains more candidates, prioritize must-have qualifications, required skills, required experience levels, credentials, responsibilities, and explicit work constraints.",
-  "After must-haves, include important preferred or nice-to-have qualifications when space remains.",
-  "Always preserve stated years of experience, required or preferred work domains, and location, schedule, or travel constraints when they affect candidate eligibility.",
-  "Broad responsibilities outrank example tasks and their individual substeps. Omit an example when a broader returned requirement already captures the same capability.",
-  "Do not fill every available item with responsibilities: when the posting contains both responsibilities and candidate qualifications, return a representative set of both.",
+  "Use this strict selection order: first include every explicit candidate-eligibility requirement or constraint, then include distinct broad responsibilities, then include important preferred qualifications not already represented.",
+  "Candidate-eligibility requirements include years of experience, required or preferred role and work domains, required or preferred skills and named tools, credentials, seniority or judgment expectations, location, working hours, schedule, and travel.",
+  "An eligibility requirement is mandatory to extract even when it appears near the end of the posting or is described as preferred, helpful, valuable, or not strictly required.",
+  "Always extract an explicitly named candidate skill or tool, such as SQL, when the posting calls it required, needed, preferred, helpful, or valuable; do not treat a broader capability such as data analysis as a substitute.",
+  "Always extract explicitly desired candidate experience in a named work domain, such as healthcare or another regulated industry; do not replace that experience qualification with a generic trait or a responsibility motivated by the domain.",
+  "Preserve all material qualifiers in an extracted requirement, including software-team or product context, required duration, alternatives, and whether experience is required or preferred.",
+  "For prose, combine closely related qualifications from the same sentence or paragraph into one requirement theme instead of returning separately scored fragments.",
+  "Examples of one combined theme include SQL plus BI tools plus spreadsheets, or agile product teams plus Jira or Linear plus Confluence or Notion plus release planning.",
+  "Do not combine separate labeled source bullets with each other.",
+  "Exclude illustrative tasks, deliverables, and substeps introduced by phrases such as 'typical work includes', 'examples include', 'for example', or similar language when a broader qualification or responsibility represents the capability.",
+  "Never return both a broad requirement and an example, substep, or restatement of that requirement.",
+  "Omit generic personal traits and responsibility substeps whenever any concrete skill, experience, domain, or work constraint would otherwise be omitted.",
+  "Return fewer than the maximum rather than filling unused slots with examples, fragments, or semantic duplicates.",
   "The input labels detected list items as SOURCE BULLET J1, J2, and so on.",
   "Return no more than one requirements item for each SOURCE BULLET label.",
   "Treat every labeled source bullet as indivisible: do not split tools, audiences, browsers, deliverables, alternatives, or concepts joined by and/or into separate requirements.",
   "Keep the combined meaning of a labeled bullet in one concise requirement, even when some parts are optional or alternatives.",
   "If prose and a list repeat or elaborate the same requirement, return one combined requirement rather than duplicates.",
   "Do not infer extra requirements from company context or example deliverables unless the posting presents them as qualifications or responsibilities.",
-  "Before finalizing, scan the entire posting again and replace lower-priority examples with any omitted experience threshold, named technical skill, work-domain qualification, or explicit work constraint.",
+  "Before responding, verify that every explicit eligibility requirement is represented, remove semantic duplicates and illustrative tasks, and keep related prose qualifications grouped.",
   "Write each requirement as a concise standalone string.",
   "Do not include benefits, company culture, generic marketing copy, or application instructions.",
 ].join(" ");
@@ -363,6 +370,28 @@ function assertValidPass1ExtractionResult(value) {
 }
 
 /**
+ * Remove repeated requirement strings before Pass 2 so an exact model
+ * duplication cannot receive extra scoring weight.
+ *
+ * @param {string[]} requirements
+ * @returns {string[]}
+ */
+function deduplicateRequirements(requirements) {
+  const seen = new Set();
+
+  return requirements.filter((requirement) => {
+    const key = requirement.trim().toLowerCase();
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * @param {string} jobText
  * @returns {Promise<string[]>}
  */
@@ -405,7 +434,9 @@ async function extractRequirementsFromJobText(jobText) {
 
       assertValidPass1ExtractionResult(parsedResult);
 
-      const requirements = parsedResult.requirements.map((requirement) => requirement.trim());
+      const requirements = deduplicateRequirements(
+        parsedResult.requirements.map((requirement) => requirement.trim())
+      );
       debugLog("Pass 1 requirements", requirements);
 
       return requirements;
