@@ -126,7 +126,10 @@ and a repetition count. The runner loads the packaged fixtures, uses the same
 resume parser as the options page, runs each model call sequentially, and leaves
 the resume saved in GapCheck unchanged. Resume-case selection makes it possible
 to rerun only strong, medium, or clear-mismatch inputs when diagnosing a
-specific failure. Pass 1-only mode ignores the resume-case selection.
+specific failure. Pass 1-only mode ignores the resume-case selection. Each Pass
+1 operation uses one local categorization call followed by code-owned,
+source-aware illustrative-task filtering and consolidation before the
+requirement limit is applied.
 
 The available modes are:
 
@@ -138,7 +141,9 @@ The available modes are:
   Use this to measure the same end-to-end variation a normal analysis can show.
 - **Pass 1 audit only:** repeat requirement extraction without running Pass 2.
   Use this to inspect missing must-haves, duplicated requirements, grouping, and
-  extraction stability.
+  extraction stability. The runner warns when extraction reaches the production
+  requirement limit, omits a configured audit theme, or includes a configured
+  illustrative example that Pass 1 should exclude.
 - **Pass 2 audit with pinned requirements:** run Pass 1 once per family, then
   reuse that one requirement set across every resume and repetition. Use this
   to isolate classification and evidence-selection variation.

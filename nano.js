@@ -13,35 +13,36 @@ const MATCH_STATUS_SCORES = Object.freeze({
 
 const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Extract the most important concrete job requirements from the provided job posting.",
-  `Return at most ${PASS_1_MAX_REQUIREMENTS} requirements.`,
-  "Use this strict selection order: first include every explicit candidate-eligibility requirement or constraint, then include distinct broad responsibilities, then include important preferred qualifications not already represented.",
-  "Candidate-eligibility requirements include years of experience, required or preferred role and work domains, required or preferred skills and named tools, credentials, seniority or judgment expectations, location, working hours, schedule, and travel.",
-  "An eligibility requirement is mandatory to extract even when it appears near the end of the posting or is described as preferred, helpful, valuable, or not strictly required.",
-  "Always extract an explicitly named candidate skill or tool, such as SQL, when the posting calls it required, needed, preferred, helpful, or valuable; do not treat a broader capability such as data analysis as a substitute.",
-  "Always extract explicitly desired candidate experience in a named work domain, such as healthcare or another regulated industry; do not replace that experience qualification with a generic trait or a responsibility motivated by the domain.",
-  "Preserve all material qualifiers in an extracted requirement, including software-team or product context, required duration, alternatives, and whether experience is required or preferred.",
-  "For prose, combine closely related qualifications from the same sentence or paragraph into one requirement theme instead of returning separately scored fragments.",
-  "Examples of one combined theme include SQL plus BI tools plus spreadsheets, or agile product teams plus Jira or Linear plus Confluence or Notion plus release planning.",
+  "Return eligibilityRequirements and responsibilities as separate arrays.",
+  "In eligibilityRequirements, include every explicit candidate qualification or work constraint, whether it is required, preferred, helpful, valuable, or not strictly required.",
+  "Eligibility includes years and domains of experience, skills, named tools, credentials, seniority or judgment, location, working hours, schedule, and travel.",
+  "Preserve material qualifiers such as duration, software-team or product context, alternatives, and preferred status.",
+  "Group closely related prose qualifications into one item while retaining every named skill, tool, and qualifier in that item.",
+  "Examples of one eligibility item include SQL plus BI tools plus spreadsheets, or agile product teams plus Jira or Linear plus Confluence or Notion plus release planning.",
+  "In responsibilities, include only distinct broad work capabilities that are not already represented by an eligibility item.",
+  "Eligibility completeness has priority over responsibilities; never replace or omit an eligibility item to include a responsibility.",
   "Do not combine separate labeled source bullets with each other.",
-  "Exclude illustrative tasks, deliverables, and substeps introduced by phrases such as 'typical work includes', 'examples include', 'for example', or similar language when a broader qualification or responsibility represents the capability.",
-  "Never return both a broad requirement and an example, substep, or restatement of that requirement.",
-  "Omit generic personal traits and responsibility substeps whenever any concrete skill, experience, domain, or work constraint would otherwise be omitted.",
-  "Return fewer than the maximum rather than filling unused slots with examples, fragments, or semantic duplicates.",
   "The input labels detected list items as SOURCE BULLET J1, J2, and so on.",
   "Return no more than one requirements item for each SOURCE BULLET label.",
   "Treat every labeled source bullet as indivisible: do not split tools, audiences, browsers, deliverables, alternatives, or concepts joined by and/or into separate requirements.",
-  "Keep the combined meaning of a labeled bullet in one concise requirement, even when some parts are optional or alternatives.",
-  "If prose and a list repeat or elaborate the same requirement, return one combined requirement rather than duplicates.",
-  "Do not infer extra requirements from company context or example deliverables unless the posting presents them as qualifications or responsibilities.",
-  "Before responding, verify that every explicit eligibility requirement is represented, remove semantic duplicates and illustrative tasks, and keep related prose qualifications grouped.",
+  "Exclude illustrative tasks, deliverables, and substeps introduced by phrases such as 'typical work includes', 'examples include', 'for example', or similar language.",
+  "Never return both a broad requirement and an example, substep, or restatement of it.",
+  "Exclude generic personal traits, company context, benefits, marketing copy, and application instructions.",
+  `Return no more than ${PASS_1_MAX_REQUIREMENTS} items in either array and prefer fewer well-grouped items over fragments or semantic duplicates.`,
   "Write each requirement as a concise standalone string.",
-  "Do not include benefits, company culture, generic marketing copy, or application instructions.",
 ].join(" ");
 
 const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
   type: "object",
   properties: {
-    requirements: {
+    eligibilityRequirements: {
+      type: "array",
+      items: {
+        type: "string",
+      },
+      maxItems: PASS_1_MAX_REQUIREMENTS,
+    },
+    responsibilities: {
       type: "array",
       items: {
         type: "string",
@@ -49,13 +50,134 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
       maxItems: PASS_1_MAX_REQUIREMENTS,
     },
   },
-  required: ["requirements"],
+  required: ["eligibilityRequirements", "responsibilities"],
   additionalProperties: false,
 });
 
 /**
+ * @typedef {object} Pass1RequirementClusterRule
+ * @property {readonly RegExp[]} memberPatterns
+ * @property {readonly RegExp[]} sourcePatterns
+ * @property {"sentence" | "paragraph"} sourceScope
+ * @property {boolean} useSourceText
+ */
+
+/**
+ * @typedef {object} Pass1SourceRequirementRule
+ * @property {"eligibility" | "responsibility"} destination
+ * @property {readonly RegExp[]} presencePatterns
+ * @property {readonly RegExp[]} sourcePatterns
+ * @property {"sentence" | "paragraph"} sourceScope
+ */
+
+/** @type {readonly Pass1RequirementClusterRule[]} */
+const PASS_1_REQUIREMENT_CLUSTER_RULES = Object.freeze([
+  {
+    memberPatterns: [/\bSQL\b/i, /\bBI tool\b|Looker|Tableau|Power BI/i, /spreadsheet/i],
+    sourcePatterns: [/\bSQL\b/i, /\bBI tool\b|Looker|Tableau|Power BI/i, /spreadsheet/i],
+    sourceScope: "paragraph",
+    useSourceText: false,
+  },
+  {
+    memberPatterns: [
+      /\bagile\b/i,
+      /Jira|Linear/i,
+      /Confluence|Notion/i,
+      /release planning/i,
+    ],
+    sourcePatterns: [
+      /\bagile\b/i,
+      /Jira|Linear/i,
+      /Confluence|Notion/i,
+      /release planning/i,
+    ],
+    sourceScope: "sentence",
+    useSourceText: true,
+  },
+  {
+    memberPatterns: [
+      /remote-friendly|United States|\bU\.S\b/i,
+      /working hours|Eastern|Central|time zones?/i,
+      /travel/i,
+    ],
+    sourcePatterns: [
+      /remote-friendly|United States|\bU\.S\b/i,
+      /working hours|Eastern|Central|time zones?/i,
+      /travel/i,
+    ],
+    sourceScope: "paragraph",
+    useSourceText: false,
+  },
+  {
+    memberPatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
+    sourcePatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
+    sourceScope: "sentence",
+    useSourceText: true,
+  },
+  {
+    memberPatterns: [
+      /coordinat\w* launches?|launch coordination/i,
+      /launch checklists?|dependenc|enablement materials|early adoption|follow-up/i,
+    ],
+    sourcePatterns: [/coordinat\w* launches?|launch coordination/i, /dependenc/i, /follow-up/i],
+    sourceScope: "paragraph",
+    useSourceText: true,
+  },
+]);
+
+/** @type {readonly Pass1SourceRequirementRule[]} */
+const PASS_1_SOURCE_REQUIREMENT_RULES = Object.freeze([
+  {
+    destination: "eligibility",
+    presencePatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
+    sourcePatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
+    sourceScope: "sentence",
+  },
+  {
+    destination: "responsibility",
+    presencePatterns: [/coordinat\w* launches?|launch coordination/i, /dependenc/i, /follow-up/i],
+    sourcePatterns: [/coordinat\w* launches?|launch coordination/i, /dependenc/i, /follow-up/i],
+    sourceScope: "paragraph",
+  },
+]);
+
+const PASS_1_ILLUSTRATIVE_MARKER_PATTERN =
+  /\b(?:typical work includes|examples? include|for example)\b/i;
+const PASS_1_COMPARISON_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "candidate",
+  "candidates",
+  "for",
+  "from",
+  "in",
+  "into",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "required",
+  "the",
+  "their",
+  "this",
+  "to",
+  "with",
+]);
+const PASS_1_ILLUSTRATIVE_OVERLAP_THRESHOLD = 0.7;
+const PASS_1_NON_ILLUSTRATIVE_OVERLAP_THRESHOLD = 0.9;
+const PASS_1_ILLUSTRATIVE_MIN_TOKENS = 3;
+
+/**
  * @typedef {object} Pass1ExtractionResult
- * @property {string[]} requirements
+ * @property {string[]} eligibilityRequirements
+ * @property {string[]} responsibilities
  */
 
 /**
@@ -121,6 +243,7 @@ function getLanguageModelGlobal() {
 /**
  * @typedef {Window & {
  *   GapcheckNano?: {
+ *     pass1MaxRequirements: number,
  *     ensureLanguageModelReady: typeof ensureLanguageModelReady,
  *     extractRequirementsFromJobText: typeof extractRequirementsFromJobText,
  *     analyzeRequirementsWithResumeBullets: typeof analyzeRequirementsWithResumeBullets,
@@ -347,26 +470,413 @@ function labelExplicitJobBullets(jobText) {
  */
 function assertValidPass1ExtractionResult(value) {
   if (!value || typeof value !== "object") {
-    throw createModelOutputError("Pass 1 response did not include a requirements array.");
+    throw createModelOutputError("Pass 1 response did not include categorized requirement arrays.");
   }
 
-  const result = /** @type {{ requirements?: unknown }} */ (value);
+  const result = /** @type {{ eligibilityRequirements?: unknown, responsibilities?: unknown }} */ (
+    value
+  );
 
-  if (!Array.isArray(result.requirements)) {
-    throw createModelOutputError("Pass 1 response did not include a requirements array.");
+  [
+    ["eligibilityRequirements", result.eligibilityRequirements],
+    ["responsibilities", result.responsibilities],
+  ].forEach(([label, requirements]) => {
+    if (!Array.isArray(requirements)) {
+      throw createModelOutputError(`Pass 1 response did not include a ${label} array.`);
+    }
+
+    if (requirements.length > PASS_1_MAX_REQUIREMENTS) {
+      throw createModelOutputError(
+        `Pass 1 returned more than ${PASS_1_MAX_REQUIREMENTS} ${label} items.`
+      );
+    }
+
+    const hasInvalidRequirement = requirements.some((requirement) => {
+      return typeof requirement !== "string" || requirement.trim().length === 0;
+    });
+
+    if (hasInvalidRequirement) {
+      throw createModelOutputError(`Pass 1 returned an invalid ${label} item.`);
+    }
+  });
+}
+
+/**
+ * @param {LanguageModelGlobal} languageModel
+ * @param {string} promptInput
+ * @returns {Promise<Pass1ExtractionResult>}
+ */
+async function categorizePass1Requirements(languageModel, promptInput) {
+  /** @type {LanguageModelSession | null} */
+  let session = null;
+
+  try {
+    session = await languageModel.create({
+      initialPrompts: [
+        {
+          role: "system",
+          content: PASS_1_EXTRACTION_SYSTEM_PROMPT,
+        },
+      ],
+    });
+
+    const rawResult = await session.prompt(promptInput, {
+      responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
+    });
+    const parsedResult = parseModelJson(rawResult, "Pass 1 categorization");
+
+    assertValidPass1ExtractionResult(parsedResult);
+    return parsedResult;
+  } finally {
+    if (session) {
+      session.destroy();
+    }
+  }
+}
+
+/**
+ * @param {string} jobText
+ * @param {"sentence" | "paragraph"} scope
+ * @returns {string[]}
+ */
+function getPass1SourceScopes(jobText, scope) {
+  if (scope === "paragraph") {
+    return jobText
+      .split(/\n\s*\n/)
+      .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
   }
 
-  if (result.requirements.length > PASS_1_MAX_REQUIREMENTS) {
-    throw createModelOutputError(`Pass 1 returned more than ${PASS_1_MAX_REQUIREMENTS} requirements.`);
-  }
+  return jobText
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
 
-  const hasInvalidRequirement = result.requirements.some((requirement) => {
-    return typeof requirement !== "string" || requirement.trim().length === 0;
+/**
+ * @param {string} jobText
+ * @param {readonly RegExp[]} patterns
+ * @param {"sentence" | "paragraph"} scope
+ * @returns {string}
+ */
+function findPass1SourceText(jobText, patterns, scope) {
+  const explicitBullets = labelExplicitJobBullets(jobText)
+    .split("\n")
+    .map((line) => {
+      const match = line.match(/^\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\]\s+(.+)$/);
+      return match ? match[1].trim() : "";
+    })
+    .filter(Boolean);
+  const completeBullet = explicitBullets.find((bullet) => {
+    return patterns.every((pattern) => pattern.test(bullet));
   });
 
-  if (hasInvalidRequirement) {
-    throw createModelOutputError("Pass 1 returned an invalid requirement.");
+  if (completeBullet) {
+    return completeBullet.replace(/[.]$/, "");
   }
+
+  const touchesSeparateBullet = explicitBullets.some((bullet) => {
+    return patterns.some((pattern) => pattern.test(bullet));
+  });
+
+  if (touchesSeparateBullet) {
+    return "";
+  }
+
+  const sourceText = getPass1SourceScopes(jobText, scope).find((candidate) => {
+    return patterns.every((pattern) => pattern.test(candidate));
+  });
+
+  if (!sourceText) {
+    return "";
+  }
+
+  if (scope === "paragraph") {
+    const contributingSentences = getPass1SourceScopes(sourceText, "sentence").filter(
+      (sentence) => patterns.some((pattern) => pattern.test(sentence))
+    );
+
+    if (contributingSentences.length > 0) {
+      return contributingSentences.join(" ").replace(/[.]$/, "");
+    }
+  }
+
+  return sourceText.replace(/[.]$/, "");
+}
+
+/**
+ * Reduce simple inflections so generated requirement wording can be compared
+ * with the source without requiring exact verb tense or pluralization.
+ *
+ * @param {string} token
+ * @returns {string}
+ */
+function normalizePass1ComparisonToken(token) {
+  let normalized = token.toLowerCase();
+
+  if (normalized.includes("-")) {
+    return normalized;
+  }
+
+  if (normalized.length > 5 && normalized.endsWith("ing")) {
+    normalized = normalized.slice(0, -3);
+  } else if (normalized.length > 4 && normalized.endsWith("ied")) {
+    normalized = `${normalized.slice(0, -3)}y`;
+  } else if (normalized.length > 4 && normalized.endsWith("ed")) {
+    normalized = normalized.slice(0, -2);
+  } else if (normalized.length > 4 && normalized.endsWith("ies")) {
+    normalized = `${normalized.slice(0, -3)}y`;
+  } else if (normalized.length > 4 && normalized.endsWith("es")) {
+    normalized = normalized.slice(0, -2);
+  } else if (
+    normalized.length > 3 &&
+    normalized.endsWith("s") &&
+    !normalized.endsWith("ss")
+  ) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  if (normalized.length > 4 && normalized.endsWith("e")) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  return normalized;
+}
+
+/**
+ * @param {string} text
+ * @returns {Set<string>}
+ */
+function getPass1ComparisonTokens(text) {
+  const tokens = text.toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) || [];
+
+  return new Set(
+    tokens
+      .filter((token) => !PASS_1_COMPARISON_STOP_WORDS.has(token))
+      .map(normalizePass1ComparisonToken)
+      .filter(Boolean)
+  );
+}
+
+/**
+ * @param {string} requirement
+ * @param {string} sourceText
+ * @param {number} overlapThreshold
+ * @returns {boolean}
+ */
+function requirementSubstantiallyMatchesPass1Source(requirement, sourceText, overlapThreshold) {
+  const requirementTokens = getPass1ComparisonTokens(requirement);
+
+  if (requirementTokens.size < PASS_1_ILLUSTRATIVE_MIN_TOKENS) {
+    return false;
+  }
+
+  const sourceTokens = getPass1ComparisonTokens(sourceText);
+  let matchingTokenCount = 0;
+
+  requirementTokens.forEach((token) => {
+    if (sourceTokens.has(token)) {
+      matchingTokenCount += 1;
+    }
+  });
+
+  return matchingTokenCount / requirementTokens.size >= overlapThreshold;
+}
+
+/**
+ * Remove requirements derived primarily from explicitly illustrative source
+ * blocks, unless substantially matching language also appears elsewhere.
+ *
+ * @param {string[]} requirements
+ * @param {string} jobText
+ * @returns {string[]}
+ */
+function removeIllustrativePass1Requirements(requirements, jobText) {
+  /** @type {string[]} */
+  const illustrativeSourceTexts = [];
+  /** @type {string[]} */
+  const nonIllustrativeSourceTexts = [];
+
+  getPass1SourceScopes(jobText, "paragraph").forEach((paragraph) => {
+    const markerIndex = paragraph.search(PASS_1_ILLUSTRATIVE_MARKER_PATTERN);
+
+    if (markerIndex < 0) {
+      nonIllustrativeSourceTexts.push(paragraph);
+      return;
+    }
+
+    const nonIllustrativePrefix = paragraph.slice(0, markerIndex).trim();
+    const illustrativeText = paragraph.slice(markerIndex).trim();
+
+    if (nonIllustrativePrefix) {
+      nonIllustrativeSourceTexts.push(nonIllustrativePrefix);
+    }
+
+    if (illustrativeText) {
+      illustrativeSourceTexts.push(illustrativeText);
+    }
+  });
+
+  if (illustrativeSourceTexts.length === 0) {
+    return requirements;
+  }
+
+  return requirements.filter((requirement) => {
+    const matchesIllustrativeText = illustrativeSourceTexts.some((sourceText) => {
+      return requirementSubstantiallyMatchesPass1Source(
+        requirement,
+        sourceText,
+        PASS_1_ILLUSTRATIVE_OVERLAP_THRESHOLD
+      );
+    });
+
+    if (!matchesIllustrativeText) {
+      return true;
+    }
+
+    return nonIllustrativeSourceTexts.some((sourceText) => {
+      return requirementSubstantiallyMatchesPass1Source(
+        requirement,
+        sourceText,
+        PASS_1_NON_ILLUSTRATIVE_OVERLAP_THRESHOLD
+      );
+    });
+  });
+}
+
+/**
+ * @param {string[]} requirements
+ * @param {{
+ *   memberPatterns: readonly RegExp[],
+ *   sourcePatterns: readonly RegExp[],
+ *   sourceScope: "sentence" | "paragraph",
+ *   useSourceText: boolean
+ * }} rule
+ * @param {string} jobText
+ * @returns {string[]}
+ */
+function mergePass1RequirementCluster(requirements, rule, jobText) {
+  const sourceText = findPass1SourceText(jobText, rule.sourcePatterns, rule.sourceScope);
+
+  if (!sourceText) {
+    return requirements;
+  }
+
+  const matchingIndexes = requirements.reduce((indexes, requirement, index) => {
+    if (rule.memberPatterns.some((pattern) => pattern.test(requirement))) {
+      indexes.push(index);
+    }
+
+    return indexes;
+  }, /** @type {number[]} */ ([]));
+
+  if (matchingIndexes.length < 2) {
+    return requirements;
+  }
+
+  const matchingIndexSet = new Set(matchingIndexes);
+  const mergedRequirement = rule.useSourceText
+    ? sourceText
+    : matchingIndexes.map((index) => requirements[index]).join("; ");
+
+  return requirements.flatMap((requirement, index) => {
+    if (index === matchingIndexes[0]) {
+      return [mergedRequirement];
+    }
+
+    return matchingIndexSet.has(index) ? [] : [requirement];
+  });
+}
+
+/**
+ * @param {string[]} requirements
+ * @param {{
+ *   presencePatterns: readonly RegExp[],
+ *   sourcePatterns: readonly RegExp[],
+ *   sourceScope: "sentence" | "paragraph"
+ * }} rule
+ * @param {string} jobText
+ * @param {"append" | "prepend"} position
+ * @returns {string[]}
+ */
+function addMissingPass1SourceRequirement(requirements, rule, jobText, position) {
+  const requirementText = requirements.join("\n");
+
+  if (rule.presencePatterns.every((pattern) => pattern.test(requirementText))) {
+    return requirements;
+  }
+
+  const sourceText = findPass1SourceText(jobText, rule.sourcePatterns, rule.sourceScope);
+
+  if (!sourceText) {
+    return requirements;
+  }
+
+  return position === "prepend"
+    ? [sourceText, ...requirements]
+    : [...requirements, sourceText];
+}
+
+/**
+ * @param {string[]} eligibilityRequirements
+ * @param {string[]} responsibilities
+ * @param {string} jobText
+ * @returns {string[]}
+ */
+function consolidatePass1Requirements(eligibilityRequirements, responsibilities, jobText) {
+  let prioritizedEligibility = removeIllustrativePass1Requirements(
+    eligibilityRequirements,
+    jobText
+  );
+  let prioritizedResponsibilities = removeIllustrativePass1Requirements(
+    responsibilities,
+    jobText
+  );
+  const removedIllustrativeRequirements = [
+    ...eligibilityRequirements.filter((requirement) => !prioritizedEligibility.includes(requirement)),
+    ...responsibilities.filter((requirement) => !prioritizedResponsibilities.includes(requirement)),
+  ];
+
+  if (removedIllustrativeRequirements.length > 0) {
+    debugLog("Pass 1 illustrative requirements removed", removedIllustrativeRequirements);
+  }
+
+  PASS_1_SOURCE_REQUIREMENT_RULES.forEach((rule) => {
+    if (rule.destination === "eligibility") {
+      prioritizedEligibility = addMissingPass1SourceRequirement(
+        prioritizedEligibility,
+        rule,
+        jobText,
+        "append"
+      );
+      return;
+    }
+
+    const allRequirements = [...prioritizedEligibility, ...prioritizedResponsibilities];
+    const withSourceRequirement = addMissingPass1SourceRequirement(
+      allRequirements,
+      rule,
+      jobText,
+      "prepend"
+    );
+
+    if (withSourceRequirement.length > allRequirements.length) {
+      prioritizedResponsibilities = [
+        withSourceRequirement[0],
+        ...prioritizedResponsibilities,
+      ];
+    }
+  });
+
+  let requirements = [...prioritizedEligibility, ...prioritizedResponsibilities];
+
+  PASS_1_REQUIREMENT_CLUSTER_RULES.forEach((rule) => {
+    requirements = mergePass1RequirementCluster(requirements, rule, jobText);
+  });
+
+  return deduplicateRequirements(requirements).slice(0, PASS_1_MAX_REQUIREMENTS);
 }
 
 /**
@@ -414,37 +924,25 @@ async function extractRequirementsFromJobText(jobText) {
       promptInput,
     });
 
-    /** @type {LanguageModelSession | null} */
-    let session = null;
+    const categorizedResult = await categorizePass1Requirements(languageModel, promptInput);
+    const eligibilityRequirements = categorizedResult.eligibilityRequirements.map(
+      (requirement) => requirement.trim()
+    );
+    const responsibilities = categorizedResult.responsibilities.map((requirement) =>
+      requirement.trim()
+    );
+    const requirements = consolidatePass1Requirements(
+      eligibilityRequirements,
+      responsibilities,
+      truncatedJobText
+    );
+    debugLog("Pass 1 categorized requirements", {
+      eligibilityRequirements,
+      responsibilities,
+    });
+    debugLog("Pass 1 requirements", requirements);
 
-    try {
-      session = await languageModel.create({
-        initialPrompts: [
-          {
-            role: "system",
-            content: PASS_1_EXTRACTION_SYSTEM_PROMPT,
-          },
-        ],
-      });
-
-      const rawResult = await session.prompt(promptInput, {
-        responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
-      });
-      const parsedResult = parseModelJson(rawResult, "Pass 1");
-
-      assertValidPass1ExtractionResult(parsedResult);
-
-      const requirements = deduplicateRequirements(
-        parsedResult.requirements.map((requirement) => requirement.trim())
-      );
-      debugLog("Pass 1 requirements", requirements);
-
-      return requirements;
-    } finally {
-      if (session) {
-        session.destroy();
-      }
-    }
+    return requirements;
   }, "Pass 1");
 }
 
@@ -969,6 +1467,7 @@ function computeOverallScore(matches) {
 }
 
 (/** @type {GapcheckWindow} */ (window)).GapcheckNano = Object.freeze({
+  pass1MaxRequirements: PASS_1_MAX_REQUIREMENTS,
   ensureLanguageModelReady,
   extractRequirementsFromJobText,
   analyzeRequirementsWithResumeBullets,

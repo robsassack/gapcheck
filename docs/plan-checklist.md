@@ -143,10 +143,10 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
     - [x] Adjacent business-operations evidence received covered credit for several product- and software-context requirements
     - [x] First refinement rerun scored strong 93, medium 83, and clear mismatch 0 in every repetition; malformed output was resolved, but medium remained over-credited
     - [x] Final refinement rerun was stable and in range: strong 100, medium 68, and clear mismatch 0 in every repetition
-- [ ] Audit Pass 1 independently
+- [x] Audit Pass 1 independently
   - [x] Label explicit source bullets and preserve wrapped compound bullets as single extraction candidates
-  - [ ] Compare extracted requirements across repeated runs
-  - [ ] Check for missing must-haves, duplicated requirements, and unstable grouping
+  - [x] Compare extracted requirements across repeated runs
+  - [x] Check for missing must-haves, duplicated requirements, and unstable grouping
 - [ ] Audit Pass 2 independently
   - [x] Reference resume evidence with code-owned bullet IDs and map valid IDs back to original bullet text
   - [x] Reject and retry unsupported or unrecognized matched-bullet evidence

@@ -4,6 +4,79 @@ const BENCHMARK_FAMILIES = Object.freeze([
   {
     id: "product-ops",
     label: "Product Operations",
+    pass1Themes: [
+      {
+        label: "at least five years of relevant experience",
+        patterns: [/\b(?:five|5)\s+years?\b/i],
+      },
+      {
+        label: "SQL, BI tools, and spreadsheets",
+        patterns: [
+          /\bSQL\b/i,
+          /\bBI\b|Looker|Tableau|Power BI/i,
+          /spreadsheet/i,
+        ],
+      },
+      {
+        label: "healthcare or regulated-industry experience",
+        patterns: [/healthcare|care delivery|insurance|regulated|compliance/i],
+      },
+      {
+        label: "agile product teams, named tools, and release planning",
+        patterns: [
+          /\bagile\b/i,
+          /Jira|Linear/i,
+          /Confluence|Notion/i,
+          /release planning/i,
+        ],
+      },
+      {
+        label: "B2B SaaS, enterprise-customer, or complex-implementation experience",
+        patterns: [/\bB2B\b|\bSaaS\b|enterprise customer|complex implementation/i],
+      },
+      {
+        label: "United States location, Eastern or Central hours, and travel",
+        patterns: [
+          /United States|\bU\.S\./i,
+          /Eastern|Central/i,
+          /travel/i,
+        ],
+      },
+      {
+        label: "independent prioritization, judgment, and escalation",
+        patterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
+      },
+      {
+        label: "cross-functional launch coordination, dependencies, and follow-up",
+        patterns: [/coordinat/i, /launch/i, /dependenc/i, /follow-up|follow through/i],
+      },
+    ],
+    pass1Exclusions: [
+      {
+        label: "illustrative feature-adoption dashboard task",
+        pattern: /dashboard[^.]*feature adoption|feature adoption[^.]*dashboard/i,
+      },
+      {
+        label: "illustrative one-off request versus market-pattern task",
+        pattern: /one-off customer request|broader market pattern/i,
+      },
+      {
+        label: "illustrative product-intake improvement task",
+        pattern: /improv\w* (?:the )?product intake process/i,
+      },
+      {
+        label: "illustrative recurring-workflow review task",
+        pattern: /recurring workflow problems?/i,
+      },
+      {
+        label: "illustrative launch-risk summary task",
+        pattern: /summar\w* (?:of )?launch risks?/i,
+      },
+      {
+        label: "illustrative quarterly-planning and program-tracking tasks",
+        pattern: /quarterly planning|beta-program tracking|customer-advisory-board/i,
+      },
+    ],
     cases: [
       { id: "strong", label: "Strong", file: "strong-match-resume.txt", min: 75, max: 100 },
       { id: "medium", label: "Medium", file: "medium-match-resume.txt", min: 40, max: 70 },
@@ -13,6 +86,8 @@ const BENCHMARK_FAMILIES = Object.freeze([
   {
     id: "web-developer",
     label: "Web Developer",
+    pass1Themes: [],
+    pass1Exclusions: [],
     cases: [
       { id: "strong", label: "Strong", file: "strong-match-resume.txt", min: 80, max: 100 },
       { id: "medium", label: "Medium", file: "medium-match-resume.txt", min: 40, max: 70 },
@@ -59,6 +134,8 @@ const RUN_MODES = Object.freeze({
  * @typedef {object} BenchmarkFamily
  * @property {string} id
  * @property {string} label
+ * @property {readonly { label: string, patterns: readonly RegExp[] }[]} pass1Themes
+ * @property {readonly { label: string, pattern: RegExp }[]} pass1Exclusions
  * @property {readonly BenchmarkCase[]} cases
  */
 
@@ -86,6 +163,7 @@ const RUN_MODES = Object.freeze({
 /** @type {Window & {
  *   GapcheckResume?: { splitResumeIntoBullets: (rawText: string) => string[] },
  *   GapcheckNano?: {
+ *     pass1MaxRequirements: number,
  *     ensureLanguageModelReady: (onDownloadProgress?: (percent: number) => void) => Promise<void>,
  *     extractRequirementsFromJobText: (jobText: string) => Promise<string[]>,
  *     analyzeRequirementsWithResumeBullets: (requirements: string[], resumeBullets: string[]) => Promise<{ matches: BenchmarkResult["matches"], summary: string }>,
@@ -226,7 +304,9 @@ function appendResultRow(result) {
   const resultError = result.pass1Error || result.error;
   row.dataset.state = resultError
     ? "error"
-    : result.phase === "pass1" || scoreInRange
+    : result.warnings.length > 0
+      ? "warn"
+      : result.phase === "pass1" || scoreInRange
       ? "ok"
       : "warn";
 
@@ -254,6 +334,41 @@ function appendResultRow(result) {
   });
 
   resultsBody.appendChild(row);
+}
+
+/**
+ * Flag Pass 1 output shapes that need human review without changing production
+ * extraction or hard-coding benchmark requirements into the extension.
+ *
+ * @param {BenchmarkFamily} family
+ * @param {string[]} requirements
+ * @param {number} requirementLimit
+ * @returns {string[]}
+ */
+function findPass1Warnings(family, requirements, requirementLimit) {
+  /** @type {string[]} */
+  const warnings = [];
+  const requirementText = requirements.join("\n");
+
+  if (requirements.length >= requirementLimit) {
+    warnings.push(
+      `Pass 1 reached the ${requirementLimit}-requirement limit; inspect for fragmentation or omitted qualifications.`
+    );
+  }
+
+  family.pass1Themes.forEach((theme) => {
+    if (!theme.patterns.every((pattern) => pattern.test(requirementText))) {
+      warnings.push(`Pass 1 omitted benchmark theme: ${theme.label}.`);
+    }
+  });
+
+  family.pass1Exclusions.forEach((exclusion) => {
+    if (exclusion.pattern.test(requirementText)) {
+      warnings.push(`Pass 1 included excluded benchmark example: ${exclusion.label}.`);
+    }
+  });
+
+  return warnings;
 }
 
 /**
@@ -443,6 +558,8 @@ async function runBenchmarks() {
     return;
   }
 
+  const analysisHelpers = nano;
+
   isRunning = true;
   cancelRequested = false;
   lastRunCancelled = false;
@@ -489,7 +606,7 @@ async function runBenchmarks() {
    * @param {number} repetition
    * @param {string} jobText
    * @param {string} context
-   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: string[], error: string | null }>}
+   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }>}
    */
   async function executePass1(family, repetition, jobText, context) {
     const startedAt = new Date();
@@ -500,7 +617,7 @@ async function runBenchmarks() {
 
     try {
       setStatus(`${family.label}, repetition ${repetition}: extracting ${context} requirements…`);
-      requirements = await nano.extractRequirementsFromJobText(jobText);
+      requirements = await analysisHelpers.extractRequirementsFromJobText(jobText);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
@@ -510,6 +627,9 @@ async function runBenchmarks() {
       durationMs: Date.now() - startedMs,
       requirements,
       error,
+      warnings: error
+        ? []
+        : findPass1Warnings(family, requirements, analysisHelpers.pass1MaxRequirements),
     };
   }
 
@@ -517,7 +637,7 @@ async function runBenchmarks() {
    * @param {BenchmarkFamily} family
    * @param {BenchmarkCase} benchmarkCase
    * @param {number} repetition
-   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null }} pass1
+   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }} pass1
    */
   function recordPass1Failure(family, benchmarkCase, repetition, pass1) {
     recordResult({
@@ -537,7 +657,7 @@ async function runBenchmarks() {
       matches: [],
       summary: "",
       error: null,
-      warnings: [],
+      warnings: pass1.warnings,
     });
   }
 
@@ -545,7 +665,7 @@ async function runBenchmarks() {
    * @param {BenchmarkFamily} family
    * @param {BenchmarkCase} benchmarkCase
    * @param {number} repetition
-   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null }} pass1
+   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }} pass1
    * @param {string[]} resumeBullets
    */
   async function executePass2(family, benchmarkCase, repetition, pass1, resumeBullets) {
@@ -557,19 +677,19 @@ async function runBenchmarks() {
     let score = null;
     let error = null;
     /** @type {string[]} */
-    const warnings = [];
+    const warnings = [...pass1.warnings];
 
     try {
       setStatus(
         `${family.label}, repetition ${repetition}: running Pass 2 for ${benchmarkCase.label.toLowerCase()} match…`
       );
-      const analysis = await nano.analyzeRequirementsWithResumeBullets(
+      const analysis = await analysisHelpers.analyzeRequirementsWithResumeBullets(
         pass1.requirements,
         resumeBullets
       );
       matches = analysis.matches;
       summary = analysis.summary;
-      score = nano.computeOverallScore(matches);
+      score = analysisHelpers.computeOverallScore(matches);
 
       if (score < benchmarkCase.min || score > benchmarkCase.max) {
         warnings.push(`Outside target range (${benchmarkCase.min}-${benchmarkCase.max}%).`);
@@ -601,7 +721,7 @@ async function runBenchmarks() {
 
   try {
     setStatus("Checking Gemini Nano availability…");
-    await nano.ensureLanguageModelReady((percent) => {
+    await analysisHelpers.ensureLanguageModelReady((percent) => {
       setStatus(`Downloading Gemini Nano… ${Math.round(percent)}%`);
     });
 
@@ -647,7 +767,7 @@ async function runBenchmarks() {
             matches: [],
             summary: "",
             error: null,
-            warnings: [],
+            warnings: pass1.warnings,
           });
         }
 
