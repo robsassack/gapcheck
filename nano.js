@@ -2,6 +2,8 @@
 
 const PASS_1_MAX_REQUIREMENTS = 20;
 const PASS_1_JOB_TEXT_CHAR_LIMIT = 6000;
+const PASS_2_REQUIREMENT_BATCH_SIZE = 6;
+const PASS_2_CONSOLIDATED_AUDIT_MAX_REQUIREMENTS = 6;
 const GAPCHECK_DEBUG_STORAGE_KEY = "gapcheckDebug";
 const MATCH_STATUSES = Object.freeze(["covered", "partial", "gap"]);
 const MATCH_SEVERITIES = Object.freeze(["low", "medium", "high"]);
@@ -18,7 +20,7 @@ const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Eligibility includes years and domains of experience, skills, named tools, credentials, seniority or judgment, location, working hours, schedule, and travel.",
   "Preserve material qualifiers such as duration, software-team or product context, alternatives, and preferred status.",
   "Group closely related prose qualifications into one item while retaining every named skill, tool, and qualifier in that item.",
-  "Examples of one eligibility item include SQL plus BI tools plus spreadsheets, or agile product teams plus Jira or Linear plus Confluence or Notion plus release planning.",
+  "When related qualifications appear together in one source sentence or paragraph, keep their combined meaning instead of returning separately scored fragments.",
   "In responsibilities, include only distinct broad work capabilities that are not already represented by an eligibility item.",
   "Eligibility completeness has priority over responsibilities; never replace or omit an eligibility item to include a responsibility.",
   "Do not combine separate labeled source bullets with each other.",
@@ -28,7 +30,7 @@ const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Exclude illustrative tasks, deliverables, and substeps introduced by phrases such as 'typical work includes', 'examples include', 'for example', or similar language.",
   "Never return both a broad requirement and an example, substep, or restatement of it.",
   "Exclude generic personal traits, company context, benefits, marketing copy, and application instructions.",
-  `Return no more than ${PASS_1_MAX_REQUIREMENTS} items in either array and prefer fewer well-grouped items over fragments or semantic duplicates.`,
+  `Return no more than ${PASS_1_MAX_REQUIREMENTS} total items across both arrays and prefer fewer well-grouped items over fragments or semantic duplicates.`,
   "Write each requirement as a concise standalone string.",
 ].join(" ");
 
@@ -54,92 +56,20 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
   additionalProperties: false,
 });
 
-/**
- * @typedef {object} Pass1RequirementClusterRule
- * @property {readonly RegExp[]} memberPatterns
- * @property {readonly RegExp[]} sourcePatterns
- * @property {"sentence" | "paragraph"} sourceScope
- * @property {boolean} useSourceText
- */
-
-/**
- * @typedef {object} Pass1SourceRequirementRule
- * @property {"eligibility" | "responsibility"} destination
- * @property {readonly RegExp[]} presencePatterns
- * @property {readonly RegExp[]} sourcePatterns
- * @property {"sentence" | "paragraph"} sourceScope
- */
-
-/** @type {readonly Pass1RequirementClusterRule[]} */
-const PASS_1_REQUIREMENT_CLUSTER_RULES = Object.freeze([
-  {
-    memberPatterns: [/\bSQL\b/i, /\bBI tool\b|Looker|Tableau|Power BI/i, /spreadsheet/i],
-    sourcePatterns: [/\bSQL\b/i, /\bBI tool\b|Looker|Tableau|Power BI/i, /spreadsheet/i],
-    sourceScope: "paragraph",
-    useSourceText: false,
-  },
-  {
-    memberPatterns: [
-      /\bagile\b/i,
-      /Jira|Linear/i,
-      /Confluence|Notion/i,
-      /release planning/i,
-    ],
-    sourcePatterns: [
-      /\bagile\b/i,
-      /Jira|Linear/i,
-      /Confluence|Notion/i,
-      /release planning/i,
-    ],
-    sourceScope: "sentence",
-    useSourceText: true,
-  },
-  {
-    memberPatterns: [
-      /remote-friendly|United States|\bU\.S\b/i,
-      /working hours|Eastern|Central|time zones?/i,
-      /travel/i,
-    ],
-    sourcePatterns: [
-      /remote-friendly|United States|\bU\.S\b/i,
-      /working hours|Eastern|Central|time zones?/i,
-      /travel/i,
-    ],
-    sourceScope: "paragraph",
-    useSourceText: false,
-  },
-  {
-    memberPatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
-    sourcePatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
-    sourceScope: "sentence",
-    useSourceText: true,
-  },
-  {
-    memberPatterns: [
-      /coordinat\w* launches?|launch coordination/i,
-      /launch checklists?|dependenc|enablement materials|early adoption|follow-up/i,
-    ],
-    sourcePatterns: [/coordinat\w* launches?|launch coordination/i, /dependenc/i, /follow-up/i],
-    sourceScope: "paragraph",
-    useSourceText: true,
-  },
-]);
-
-/** @type {readonly Pass1SourceRequirementRule[]} */
-const PASS_1_SOURCE_REQUIREMENT_RULES = Object.freeze([
-  {
-    destination: "eligibility",
-    presencePatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
-    sourcePatterns: [/independent|prioriti/i, /judgment/i, /escalat/i],
-    sourceScope: "sentence",
-  },
-  {
-    destination: "responsibility",
-    presencePatterns: [/coordinat\w* launches?|launch coordination/i, /dependenc/i, /follow-up/i],
-    sourcePatterns: [/coordinat\w* launches?|launch coordination/i, /dependenc/i, /follow-up/i],
-    sourceScope: "paragraph",
-  },
-]);
+const PASS_1_COMPLETENESS_SYSTEM_PROMPT = [
+  "Independently audit a job-requirement extraction for completeness.",
+  "Compare the entire source job posting with the existing eligibility requirements and responsibilities.",
+  "Return a complete corrected extraction with eligibilityRequirements and responsibilities arrays, retaining correct existing items and restoring material omissions.",
+  "Perform a sentence-by-sentence check for required, preferred, helpful, valuable, optional, or not-strictly-required qualifications.",
+  "Check experience duration and domain, named tools and credentials, seniority and judgment, location, schedule, working hours, travel, and other explicit eligibility conditions.",
+  "Preserve related qualifications from the same source sentence or paragraph as one requirement, including named alternatives and material qualifiers.",
+  "Preserve explicit duration wording from the source instead of rewriting it into shorthand.",
+  "Including one condition from a sentence or paragraph does not cover its other named tools, contexts, constraints, or capabilities; retain every material clause.",
+  "In responsibilities, retain only distinct broad work capabilities that are not already represented by an eligibility item.",
+  "Do not return illustrative examples, generic personality traits, company context, fragments, restatements, or semantic duplicates.",
+  "Eligibility completeness takes priority over responsibilities. The application will apply the final combined item cap after this audit.",
+  "Write every requirement as a concise standalone string grounded only in the source posting.",
+].join(" ");
 
 const PASS_1_ILLUSTRATIVE_MARKER_PATTERN =
   /\b(?:typical work includes|examples? include|for example)\b/i;
@@ -173,6 +103,10 @@ const PASS_1_COMPARISON_STOP_WORDS = new Set([
 const PASS_1_ILLUSTRATIVE_OVERLAP_THRESHOLD = 0.7;
 const PASS_1_NON_ILLUSTRATIVE_OVERLAP_THRESHOLD = 0.9;
 const PASS_1_ILLUSTRATIVE_MIN_TOKENS = 3;
+const PASS_1_EXPLICIT_QUALIFICATION_PATTERN =
+  /\b(?:candidates?|applicants?|you|they)\s+(?:must|should|need|will need|are expected|are required)|\b(?:experience|familiarity|knowledge|licen[cs]e|certification|credential)\b[^.!?]{0,240}\b(?:required|preferred|helpful|valuable|needed|not required)\b|\b(?:role|position)(?:\s+that)?\s+(?:requires|needs)\b|\b(?:remote-friendly|availability|working hours|time zones?|travel)\b|\bavailable\s+(?:for|to work)\b|\bat least\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+years?\b|\b\d+\+?\s+years?\b|\bcomfortable\b|\bstrong\b[^.!?]{0,160}\b(?:required|important|needed)\b/i;
+const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
+  /^(?:the\s+)?(?:ideal|strongest)\s+candidates?\b|\brole\s+(?:helps|supports|turns|exists)\b|\battention to detail\b|\b(?:curious|pragmatic|passionate|self-starter|detail-oriented)\b/i;
 
 /**
  * @typedef {object} Pass1ExtractionResult
@@ -300,7 +234,18 @@ function createModelOutputError(message) {
  * @returns {boolean}
  */
 function isModelOutputError(error) {
-  return error instanceof SyntaxError || (error instanceof Error && error.name === "GapcheckModelOutputError");
+  const errorMessage =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof /** @type {{ message?: unknown }} */ (error).message === "string"
+      ? /** @type {{ message: string }} */ (error).message
+      : "";
+
+  return error instanceof SyntaxError ||
+    (error instanceof Error &&
+      error.name === "GapcheckModelOutputError") ||
+    /\b(?:output|response)\b.*\b(?:limit|truncat)/i.test(errorMessage);
 }
 
 /**
@@ -506,16 +451,22 @@ function assertValidPass1ExtractionResult(value) {
  * @param {string} promptInput
  * @returns {Promise<Pass1ExtractionResult>}
  */
-async function categorizePass1Requirements(languageModel, promptInput) {
+async function categorizePass1Requirements(
+  languageModel,
+  promptInput,
+  compactOutput = false
+) {
   /** @type {LanguageModelSession | null} */
   let session = null;
 
   try {
     session = await languageModel.create({
       initialPrompts: [
-        {
-          role: "system",
-          content: PASS_1_EXTRACTION_SYSTEM_PROMPT,
+          {
+            role: "system",
+            content: compactOutput
+              ? `${PASS_1_EXTRACTION_SYSTEM_PROMPT} Keep every returned item under 240 characters and use the fewest complete items possible.`
+              : PASS_1_EXTRACTION_SYSTEM_PROMPT,
         },
       ],
     });
@@ -524,6 +475,60 @@ async function categorizePass1Requirements(languageModel, promptInput) {
       responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
     });
     const parsedResult = parseModelJson(rawResult, "Pass 1 categorization");
+
+    assertValidPass1ExtractionResult(parsedResult);
+    return parsedResult;
+  } finally {
+    if (session) {
+      session.destroy();
+    }
+  }
+}
+
+/**
+ * A second, independent completeness pass is more general than maintaining
+ * occupation-specific recovery rules.
+ *
+ * @param {LanguageModelGlobal} languageModel
+ * @param {string} sourceJobPosting
+ * @param {Pass1ExtractionResult} existingExtraction
+ * @returns {Promise<Pass1ExtractionResult>}
+ */
+async function reviewPass1Extraction(
+  languageModel,
+  sourceJobPosting,
+  existingExtraction,
+  compactOutput = false
+) {
+  /** @type {LanguageModelSession | null} */
+  let session = null;
+
+  try {
+    session = await languageModel.create({
+      initialPrompts: [
+          {
+            role: "system",
+            content: compactOutput
+              ? `${PASS_1_COMPLETENESS_SYSTEM_PROMPT} Keep every returned item under 240 characters and use the fewest complete items possible.`
+              : PASS_1_COMPLETENESS_SYSTEM_PROMPT,
+        },
+      ],
+    });
+
+    const rawResult = await session.prompt(
+      JSON.stringify(
+        {
+          sourceJobPosting,
+          existingExtraction,
+        },
+        null,
+        2
+      ),
+      {
+        responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
+      }
+    );
+    const parsedResult = parseModelJson(rawResult, "Pass 1 completeness audit");
 
     assertValidPass1ExtractionResult(parsedResult);
     return parsedResult;
@@ -553,57 +558,6 @@ function getPass1SourceScopes(jobText, scope) {
     .split(/(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
     .filter(Boolean);
-}
-
-/**
- * @param {string} jobText
- * @param {readonly RegExp[]} patterns
- * @param {"sentence" | "paragraph"} scope
- * @returns {string}
- */
-function findPass1SourceText(jobText, patterns, scope) {
-  const explicitBullets = labelExplicitJobBullets(jobText)
-    .split("\n")
-    .map((line) => {
-      const match = line.match(/^\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\]\s+(.+)$/);
-      return match ? match[1].trim() : "";
-    })
-    .filter(Boolean);
-  const completeBullet = explicitBullets.find((bullet) => {
-    return patterns.every((pattern) => pattern.test(bullet));
-  });
-
-  if (completeBullet) {
-    return completeBullet.replace(/[.]$/, "");
-  }
-
-  const touchesSeparateBullet = explicitBullets.some((bullet) => {
-    return patterns.some((pattern) => pattern.test(bullet));
-  });
-
-  if (touchesSeparateBullet) {
-    return "";
-  }
-
-  const sourceText = getPass1SourceScopes(jobText, scope).find((candidate) => {
-    return patterns.every((pattern) => pattern.test(candidate));
-  });
-
-  if (!sourceText) {
-    return "";
-  }
-
-  if (scope === "paragraph") {
-    const contributingSentences = getPass1SourceScopes(sourceText, "sentence").filter(
-      (sentence) => patterns.some((pattern) => pattern.test(sentence))
-    );
-
-    if (contributingSentences.length > 0) {
-      return contributingSentences.join(" ").replace(/[.]$/, "");
-    }
-  }
-
-  return sourceText.replace(/[.]$/, "");
 }
 
 /**
@@ -747,76 +701,160 @@ function removeIllustrativePass1Requirements(requirements, jobText) {
 }
 
 /**
- * @param {string[]} requirements
- * @param {{
- *   memberPatterns: readonly RegExp[],
- *   sourcePatterns: readonly RegExp[],
- *   sourceScope: "sentence" | "paragraph",
- *   useSourceText: boolean
- * }} rule
+ * Select explicit prose qualifications directly from the source. Paragraphs
+ * containing list bullets are left to the bullet-aware model extraction so
+ * benefit, task, and requirement lists are not conflated.
+ *
  * @param {string} jobText
  * @returns {string[]}
  */
-function mergePass1RequirementCluster(requirements, rule, jobText) {
-  const sourceText = findPass1SourceText(jobText, rule.sourcePatterns, rule.sourceScope);
+function getExplicitPass1QualificationSources(jobText) {
+  const qualificationSentences = jobText
+    .split(/\n\s*\n/)
+    .filter((paragraph) => {
+      return !paragraph.split("\n").some((line) => {
+        return /^\s*(?:[-*•▪◦–—]|\d+[.)])\s+/.test(line);
+      });
+    })
+    .flatMap((paragraph) => getPass1SourceScopes(paragraph, "sentence"))
+    .filter((sentence) => {
+      return PASS_1_EXPLICIT_QUALIFICATION_PATTERN.test(sentence) &&
+        !PASS_1_ILLUSTRATIVE_MARKER_PATTERN.test(sentence) &&
+        !PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN.test(sentence);
+    })
+    .map((sentence) => sentence.replace(/[.;]\s*$/, "").trim());
 
-  if (!sourceText) {
-    return requirements;
-  }
-
-  const matchingIndexes = requirements.reduce((indexes, requirement, index) => {
-    if (rule.memberPatterns.some((pattern) => pattern.test(requirement))) {
-      indexes.push(index);
-    }
-
-    return indexes;
-  }, /** @type {number[]} */ ([]));
-
-  if (matchingIndexes.length < 2) {
-    return requirements;
-  }
-
-  const matchingIndexSet = new Set(matchingIndexes);
-  const mergedRequirement = rule.useSourceText
-    ? sourceText
-    : matchingIndexes.map((index) => requirements[index]).join("; ");
-
-  return requirements.flatMap((requirement, index) => {
-    if (index === matchingIndexes[0]) {
-      return [mergedRequirement];
-    }
-
-    return matchingIndexSet.has(index) ? [] : [requirement];
-  });
+  return deduplicateRequirements(qualificationSentences);
 }
 
 /**
+ * Prefer complete source sentences over incomplete model paraphrases. This
+ * preserves all tools, contexts, durations, alternatives, and work constraints
+ * without relying on an occupation-specific recovery dictionary.
+ *
  * @param {string[]} requirements
- * @param {{
- *   presencePatterns: readonly RegExp[],
- *   sourcePatterns: readonly RegExp[],
- *   sourceScope: "sentence" | "paragraph"
- * }} rule
- * @param {string} jobText
- * @param {"append" | "prepend"} position
+ * @param {string[]} sourceQualifications
  * @returns {string[]}
  */
-function addMissingPass1SourceRequirement(requirements, rule, jobText, position) {
-  const requirementText = requirements.join("\n");
+function replacePass1ParaphrasesWithSourceQualifications(
+  requirements,
+  sourceQualifications
+) {
+  const retainedRequirements = requirements.filter((requirement) => {
+    if (PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN.test(requirement)) {
+      return false;
+    }
 
-  if (rule.presencePatterns.every((pattern) => pattern.test(requirementText))) {
+    return !sourceQualifications.some((sourceQualification) => {
+      return requirementSubstantiallyMatchesPass1Source(
+        requirement,
+        sourceQualification,
+        0.55
+      );
+    });
+  });
+
+  return deduplicateRequirements([
+    ...sourceQualifications,
+    ...retainedRequirements,
+  ]);
+}
+
+/**
+ * When the audited extraction exceeds the final cap, merge fragments that map
+ * back to the same prose paragraph. Requirements sourced from explicit list
+ * bullets remain separate.
+ *
+ * @param {string[]} requirements
+ * @param {string} jobText
+ * @returns {string[]}
+ */
+function mergeRelatedPass1RequirementsToLimit(requirements, jobText) {
+  if (requirements.length <= PASS_1_MAX_REQUIREMENTS) {
     return requirements;
   }
 
-  const sourceText = findPass1SourceText(jobText, rule.sourcePatterns, rule.sourceScope);
+  const sourceParagraphs = jobText
+    .split(/\n\s*\n/)
+    .map((rawText) => {
+      const explicitBulletCount = rawText.split("\n").filter((line) => {
+        return /^\s*(?:[-*•▪◦–—]|\d+[.)])\s+/.test(line);
+      }).length;
 
-  if (!sourceText) {
-    return requirements;
+      return {
+        text: rawText.replace(/\s+/g, " ").trim(),
+        canMerge: explicitBulletCount <= 1,
+      };
+    })
+    .filter((paragraph) => paragraph.text.length > 0);
+  let mergedRequirements = [...requirements];
+
+  while (mergedRequirements.length > PASS_1_MAX_REQUIREMENTS) {
+    /** @type {Map<number, number[]>} */
+    const requirementIndexesByParagraph = new Map();
+
+    mergedRequirements.forEach((requirement, requirementIndex) => {
+      const requirementTokens = getPass1ComparisonTokens(requirement);
+
+      if (requirementTokens.size < PASS_1_ILLUSTRATIVE_MIN_TOKENS) {
+        return;
+      }
+
+      let bestParagraphIndex = -1;
+      let bestOverlap = 0;
+
+      sourceParagraphs.forEach((paragraph, paragraphIndex) => {
+        if (!paragraph.canMerge) {
+          return;
+        }
+
+        const sourceTokens = getPass1ComparisonTokens(paragraph.text);
+        const matchingCount = [...requirementTokens].filter((token) => {
+          return sourceTokens.has(token);
+        }).length;
+        const overlap = matchingCount / requirementTokens.size;
+
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestParagraphIndex = paragraphIndex;
+        }
+      });
+
+      if (bestParagraphIndex < 0 || bestOverlap < 0.6) {
+        return;
+      }
+
+      const indexes = requirementIndexesByParagraph.get(bestParagraphIndex) || [];
+      indexes.push(requirementIndex);
+      requirementIndexesByParagraph.set(bestParagraphIndex, indexes);
+    });
+
+    const mergeCandidate = [...requirementIndexesByParagraph.values()]
+      .filter((indexes) => indexes.length > 1)
+      .sort((first, second) => second.length - first.length)[0];
+
+    if (!mergeCandidate) {
+      break;
+    }
+
+    const candidateIndexSet = new Set(mergeCandidate);
+    const firstCandidateIndex = mergeCandidate[0];
+    const combinedRequirement = mergeCandidate
+      .map((requirementIndex) => {
+        return mergedRequirements[requirementIndex].replace(/[.;]\s*$/, "");
+      })
+      .join("; ");
+
+    mergedRequirements = mergedRequirements.flatMap((requirement, requirementIndex) => {
+      if (requirementIndex === firstCandidateIndex) {
+        return [combinedRequirement];
+      }
+
+      return candidateIndexSet.has(requirementIndex) ? [] : [requirement];
+    });
   }
 
-  return position === "prepend"
-    ? [sourceText, ...requirements]
-    : [...requirements, sourceText];
+  return mergedRequirements;
 }
 
 /**
@@ -826,6 +864,7 @@ function addMissingPass1SourceRequirement(requirements, rule, jobText, position)
  * @returns {string[]}
  */
 function consolidatePass1Requirements(eligibilityRequirements, responsibilities, jobText) {
+  const sourceQualifications = getExplicitPass1QualificationSources(jobText);
   let prioritizedEligibility = removeIllustrativePass1Requirements(
     eligibilityRequirements,
     jobText
@@ -843,40 +882,40 @@ function consolidatePass1Requirements(eligibilityRequirements, responsibilities,
     debugLog("Pass 1 illustrative requirements removed", removedIllustrativeRequirements);
   }
 
-  PASS_1_SOURCE_REQUIREMENT_RULES.forEach((rule) => {
-    if (rule.destination === "eligibility") {
-      prioritizedEligibility = addMissingPass1SourceRequirement(
-        prioritizedEligibility,
-        rule,
-        jobText,
-        "append"
+  prioritizedEligibility = replacePass1ParaphrasesWithSourceQualifications(
+    prioritizedEligibility,
+    sourceQualifications
+  );
+  prioritizedResponsibilities = replacePass1ParaphrasesWithSourceQualifications(
+    prioritizedResponsibilities,
+    []
+  ).filter((requirement) => {
+    return !sourceQualifications.some((sourceQualification) => {
+      return requirementSubstantiallyMatchesPass1Source(
+        requirement,
+        sourceQualification,
+        0.55
       );
-      return;
-    }
-
-    const allRequirements = [...prioritizedEligibility, ...prioritizedResponsibilities];
-    const withSourceRequirement = addMissingPass1SourceRequirement(
-      allRequirements,
-      rule,
-      jobText,
-      "prepend"
-    );
-
-    if (withSourceRequirement.length > allRequirements.length) {
-      prioritizedResponsibilities = [
-        withSourceRequirement[0],
-        ...prioritizedResponsibilities,
-      ];
-    }
+    });
   });
 
-  let requirements = [...prioritizedEligibility, ...prioritizedResponsibilities];
-
-  PASS_1_REQUIREMENT_CLUSTER_RULES.forEach((rule) => {
-    requirements = mergePass1RequirementCluster(requirements, rule, jobText);
+  const firstSourceLine = jobText
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+  const deduplicatedRequirements = deduplicateRequirements([
+    ...prioritizedEligibility,
+    ...prioritizedResponsibilities,
+  ]).filter((requirement) => {
+    return !firstSourceLine ||
+      requirement.trim().toLowerCase() !== firstSourceLine.toLowerCase();
   });
+  const mergedRequirements = mergeRelatedPass1RequirementsToLimit(
+    deduplicatedRequirements,
+    jobText
+  );
 
-  return deduplicateRequirements(requirements).slice(0, PASS_1_MAX_REQUIREMENTS);
+  return mergedRequirements.slice(0, PASS_1_MAX_REQUIREMENTS);
 }
 
 /**
@@ -906,7 +945,7 @@ function deduplicateRequirements(requirements) {
  * @returns {Promise<string[]>}
  */
 async function extractRequirementsFromJobText(jobText) {
-  return withModelOutputRetry(async () => {
+  return withModelOutputRetry(async (isRetry) => {
     const languageModel = getLanguageModelGlobal();
 
     if (!languageModel) {
@@ -924,11 +963,21 @@ async function extractRequirementsFromJobText(jobText) {
       promptInput,
     });
 
-    const categorizedResult = await categorizePass1Requirements(languageModel, promptInput);
-    const eligibilityRequirements = categorizedResult.eligibilityRequirements.map(
+    const categorizedResult = await categorizePass1Requirements(
+      languageModel,
+      promptInput,
+      isRetry
+    );
+    const reviewedResult = await reviewPass1Extraction(
+      languageModel,
+      promptInput,
+      categorizedResult,
+      isRetry
+    );
+    const eligibilityRequirements = reviewedResult.eligibilityRequirements.map(
       (requirement) => requirement.trim()
     );
-    const responsibilities = categorizedResult.responsibilities.map((requirement) =>
+    const responsibilities = reviewedResult.responsibilities.map((requirement) =>
       requirement.trim()
     );
     const requirements = consolidatePass1Requirements(
@@ -937,6 +986,7 @@ async function extractRequirementsFromJobText(jobText) {
       truncatedJobText
     );
     debugLog("Pass 1 categorized requirements", {
+      initialExtraction: categorizedResult,
       eligibilityRequirements,
       responsibilities,
     });
@@ -948,58 +998,769 @@ async function extractRequirementsFromJobText(jobText) {
 
 const PASS_2_ANALYSIS_SYSTEM_PROMPT = [
   "Compare the provided job requirements against the provided resumeEvidence entries.",
-  "Each resumeEvidence entry has a short code-owned id and its original resume text.",
+  'Each resumeEvidence entry has a short code-owned id, its original resume text, and a kind of "substantive" or "context".',
+  'Context evidence contains employment or date information. It may corroborate duration but cannot by itself prove a capability, domain, client environment, tool, or qualification.',
   "Treat technical skills, project descriptions, professional experience, support roles, and education/coursework as valid evidence.",
   "Do not penalize a resume for showing broader or more senior experience than the job requires.",
   "Return one matches item for each provided requirement, in the same order.",
-  "Copy each requirement string exactly into its matches item.",
-  "For each requirement, first select only resume evidence that demonstrates the same core capability, work domain, or a clearly established equivalent; then assign the status from that selected evidence.",
+  "Do not repeat requirement text in the response; the application maps each result to the requirement at the same array index.",
+  "For each requirement, inspect every resumeEvidence entry before assigning a status; do not stop after finding one weak or superficially related entry.",
+  "First identify direct evidence: evidence that explicitly demonstrates the required capability, tool, qualification, or context, or a clearly established equivalent.",
+  "Then identify transferable evidence: evidence that demonstrates a meaningful part of the capability in a different work domain or context. Shared generic verbs or topic words alone are not transferable evidence.",
+  "Explicit evidence for any meaningful part of a requirement must not be classified as a gap: use covered when direct evidence proves all or nearly all of the requirement, and partial when direct evidence proves only a subset or omits required context.",
+  "Evidence that is only transferable must always be partial, never covered. Do not downgrade direct evidence to transferable merely because its wording differs from the requirement.",
   'Use status "covered" only when the selected evidence directly demonstrates the full requirement or nearly all of it in the required context.',
   'Use status "partial" when the resume shows adjacent, transferable, or incomplete evidence that is relevant but does not prove the full capability or required context.',
-  'Use status "gap" only when the resume provides no meaningful evidence for the requirement.',
+  'Use status "gap" only after checking all resumeEvidence entries and finding no direct or genuinely transferable evidence for any meaningful part of the requirement.',
   "Do not award partial merely because some evidence is broadly related; it must demonstrate a meaningful portion of the core capability.",
-  "A cited evidence entry must substantively demonstrate the requirement. Generic word overlap, an unrelated-domain activity, a name, contact detail, employer name, or job title is not evidence by itself.",
+  "Every cited evidence entry must independently substantiate a specific part of the assigned classification. Cite the smallest sufficient set and omit entries that provide only generic word overlap, unrelated-domain activity, a name, contact detail, employer name, job title, or background context.",
+  "For covered, the cited entries together must directly prove all or nearly all of the requirement. For partial, each cited entry must demonstrate the direct subset or transferable capability that makes the result partial rather than a gap.",
   "For a requirement that names multiple capabilities, tools, environments, or audiences, use covered only when the evidence supports the full requirement or nearly all of it; use partial when the evidence supports only a subset.",
   "A requirement for a specific tool, platform, credential, or technical practice needs explicit evidence of that item or a clearly equivalent item. Generic documentation, handoffs, communication, organization, or process work is not technical-tool evidence.",
-  "Evidence for a named tool covers only the tool portion of a compound requirement; it does not prove agile-team, software-team, product, launch, customer, or enterprise context unless the evidence also establishes that context.",
-  "General business operations, project coordination, internal system rollout, or process improvement is transferable to product operations but does not by itself fully cover software-product, product-launch, feature-adoption, product-intake, or market-pattern work.",
-  "Apply that distinction literally: a general service-request intake process is partial for product or roadmap intake; an internal system rollout is partial for a product launch or multi-team release; a generic project-risk summary is partial for launch-risk reporting; and employee workflow findings are partial for customer or market-pattern analysis.",
+  "Evidence for one named item or one part of a compound requirement covers only that part; it does not prove a different work domain, context, audience, scale, or remaining capability unless the evidence also establishes it.",
+  "Experience from a different domain or context may be transferable, but transferable evidence by itself is partial rather than covered.",
   "For a compound requirement with a list of sources, activities, stages, or stakeholder groups, do not infer the missing elements. Use partial when the evidence demonstrates only a few elements or substitutes a different work context.",
   "Personal projects and coursework can demonstrate technical capability, but do not treat them as professional, client, enterprise, or agency experience.",
-  'Examples: HTML/CSS/JavaScript, TypeScript, React, Next.js, or front-end project work can cover general web-page or front-end development requirements; explicit Git, GitHub or GitLab version control, Azure DevOps Repos, repository, branch, commit, or pull-request evidence can cover Git collaboration requirements; support, ticketing, Agile, release coordination, or client-facing IT work can cover communication requirements.',
-  "For browser, mobile, accessibility, performance, and SEO requirements, use partial when the resume shows related web development experience but does not explicitly name that practice.",
+  "Treat an explicitly named equivalent as evidence only when it genuinely performs the same function in the requirement; superficial category similarity is not equivalence.",
+  "Concrete practices may directly demonstrate a broader capability even when the resume does not repeat the requirement's umbrella term.",
   'For covered requirements, set severity to null; for partial and gap requirements, set severity to "low", "medium", or "high" based on the importance of the missing evidence.',
   "Cite supporting evidence only by copying its short id into matchedBulletIds; never copy or paraphrase the resume text into that array.",
   "Covered and partial requirements must cite at least one supplied evidence id. Gap requirements must use an empty matchedBulletIds array.",
-  "Keep the summary to one or two concise sentences.",
+  "Before responding, audit every match: confirm no gap overlooks explicit or genuinely transferable evidence, no covered match relies only on transferable evidence, and every cited id genuinely supports the status for that exact requirement.",
 ].join(" ");
+
+const PASS_2_REVIEW_SYSTEM_PROMPT = [
+  "Act as an independent, conservative evidence auditor.",
+  "The input contains job requirements, code-owned resume evidence, and a draft comparison. Return one corrected match per requirement in the same order.",
+  "Re-evaluate every status and every citation from the source evidence; do not defer to the draft.",
+  "A cited entry must genuinely demonstrate a specific part of the exact requirement. Reject shared words, related topics, job titles, employer names, and differently meant word stems when they do not demonstrate the capability.",
+  'Evidence marked "context" may corroborate a duration requirement, but never use it alone to prove a capability, work domain, client environment, tool, or qualification.',
+  "Use covered only when the citations directly prove all or nearly all named capabilities, tools, environments, audiences, and required contexts.",
+  "If a requirement lists several required items, missing items make it partial. Items introduced only as examples or alternatives do not all need evidence.",
+  "Personal projects or coursework can demonstrate a skill, but cannot prove professional, client, team-collaboration, or production experience unless the evidence explicitly establishes that context.",
+  "Using a tool alone does not prove collaboration through that tool; require explicit evidence of the people, shared workflow, or collaborative activity.",
+  "Communicating or coordinating with an external provider does not by itself prove experience working inside that provider's environment or delivering that provider's work.",
+  "Concrete practices can directly prove a broader capability without repeating its umbrella label. Judge what the evidence demonstrates, not just shared terminology.",
+  "Coordinating substantive work across several named functions or stakeholder groups is direct cross-functional evidence, not merely adjacent evidence.",
+  "Experience in another domain is transferable and therefore partial unless the evidence also establishes the required domain or context.",
+  "A duration requirement needs both sufficient dated experience and substantive evidence that the dated roles involved the required kind of work.",
+  "Calendar time in adjacent work does not satisfy a duration requirement that also names a specific domain, team setting, client context, or type of work.",
+  "Use partial only when every cited entry demonstrates a direct subset or a genuinely transferable capability. Otherwise use gap with no citations.",
+  "A shared generic verb, communication in an unrelated task, coordination of a different object, or normal workplace activity is not genuinely transferable evidence.",
+  "For every non-gap draft match, explicitly check that the cited evidence performs the required activity on the required kind of object or demonstrates a meaningful subset of it.",
+  "Before returning a gap, scan every evidence entry for explicit evidence and clear paraphrases; different wording must not hide direct evidence.",
+  "Prefer the smallest set of the strongest supporting evidence IDs. Do not replace a strong paraphrase with weaker evidence merely because it repeats words from the requirement.",
+  'Set severity to null for covered and to "low", "medium", or "high" for partial or gap.',
+  "Do not repeat requirement text or add a prose summary; the application owns both.",
+].join(" ");
+
+const PASS_2_EVIDENCE_STOP_WORDS = new Set([
+  ...PASS_1_COMPARISON_STOP_WORDS,
+  "ability",
+  "able",
+  "another",
+  "basic",
+  "but",
+  "comfortable",
+  "experience",
+  "consistent",
+  "consistently",
+  "follow",
+  "followed",
+  "following",
+  "follows",
+  "helpful",
+  "include",
+  "includes",
+  "including",
+  "important",
+  "has",
+  "have",
+  "nice",
+  "not",
+  "preferred",
+  "requirement",
+  "requirements",
+  "responsibilities",
+  "role",
+  "similar",
+  "skills",
+  "strong",
+  "such",
+  "should",
+  "team",
+  "teams",
+  "through",
+  "throughout",
+  "using",
+  "use",
+  "valuable",
+  "when",
+  "work",
+  "working",
+]);
+const PASS_2_AMBIGUOUS_RELATED_TOKENS = new Set([
+  "operat",
+  "operation",
+  "operational",
+  "product",
+  "production",
+]);
+const PASS_2_GENERIC_CONCEPT_FAMILIES = Object.freeze([
+  /\banaly[sz]\w*|\bdata\b|\bmetric\w*|\breport\w*|\btrend\w*|\bevaluat\w*|\binspect\w*/i,
+  /\bbuild\w*|\bcreat\w*|\bdevelop\w*|\bimplement\w*|\bproduc(?:e|es|ed|ing|tion|tive)\w*/i,
+  /\bcommunicat\w*|\bexplain\w*|\bpresent\w*|\bwrit\w*|\bdocument\w*/i,
+  /\bcollaborat\w*|\bcoordinat\w*|\bstakeholder\w*|\bcross[- ]functional\b|\bbring\w*[^.!?]{0,160}\btogether\b/i,
+  /\bdiagnos\w*|\bdebug\w*|\binvestigat\w*|\btroubleshoot\w*/i,
+  /\bfix\w*|\brepair\w*|\bcorrect\w*|\bresolv\w*/i,
+  /\bfacilitat\w*|\blead\w*|\bchair\w*|\bmoderate\w*/i,
+  /\bmaintain\w*|\bupdate\w*|\badminist\w*|\bmanage\w*/i,
+  /\boptimi[sz]\w*|\bperformance\b|\befficien\w*|\bimprov\w*/i,
+  /\bplan\w*|\bschedul\w*|\bprioriti[sz]\w*|\btrack\w*|\bfollow[- ]?up\b/i,
+  /\bprocess\w*|\bprocedure\w*|\bworkflow\w*|\bintake\b|\btriage\b/i,
+  /\brisk\w*|\bescalat\w*|\bjudg\w*|\bdecision\w*|\bconflict\w*/i,
+  /\btest\w*|\bvalidat\w*|\bverif\w*|\bquality\b|\baccuracy\b/i,
+  /\btrain\w*|\bteach\w*|\bmentor\w*|\bcoach\w*|\benable\w*/i,
+  /\baccessib\w*|\bkeyboard\s+navigation\b|\balternative\s+text\b|\balt\s+text\b|\bheading\s+structure\b|\bcolor\s+contrast\b|\bform\s+labels?\b/i,
+  /\bsoftware\b|\bplatform\b|\bapplications?\b|\bdigital\s+products?\b|\btechnology\b/i,
+]);
+const PASS_2_GAP_RECOVERY_CONCEPT_FAMILIES = Object.freeze([
+  /\bdiagnos\w*|\bdebug\w*|\binvestigat\w*|\btroubleshoot\w*/i,
+  /\bfix\w*|\brepair\w*|\bcorrect\w*|\bremediat\w*|\bresolv\w*/i,
+  /\boptimi[sz]\w*|\bperformance\b|\befficien\w*/i,
+  /\baccessib\w*|\bkeyboard\s+navigation\b|\balternative\s+text\b|\balt\s+text\b|\bheading\s+structure\b|\bcolor\s+contrast\b|\bform\s+labels?\b/i,
+  /\bsoftware\b|\bplatform\b|\bapplications?\b|\bdigital\s+products?\b|\btechnology\b/i,
+]);
+const PASS_2_GENERIC_NAMED_WORD_EXCLUSIONS = new Set([
+  "Ability",
+  "Available",
+  "Basic",
+  "Comfortable",
+  "Experience",
+  "Nice",
+  "Responsibilities",
+  "Strong",
+  "The",
+  "Use",
+  "Work",
+]);
+
+/**
+ * @param {string} text
+ * @returns {Set<string>}
+ */
+function getPass2EvidenceTokens(text) {
+  const tokens = text.toLowerCase().match(/[a-z0-9]+/g) || [];
+
+  return new Set(
+    tokens
+      .filter((token) => !PASS_2_EVIDENCE_STOP_WORDS.has(token))
+      .map(normalizePass1ComparisonToken)
+      .filter(Boolean)
+  );
+}
+
+/**
+ * @param {string} first
+ * @param {string} second
+ * @returns {boolean}
+ */
+function pass2TokensAreRelated(first, second) {
+  if (first === second) {
+    return true;
+  }
+
+  if (
+    PASS_2_AMBIGUOUS_RELATED_TOKENS.has(first) ||
+    PASS_2_AMBIGUOUS_RELATED_TOKENS.has(second)
+  ) {
+    return false;
+  }
+
+  return Math.min(first.length, second.length) >= 5 &&
+    (first.startsWith(second) || second.startsWith(first));
+}
+
+/**
+ * Find likely proper names, acronyms, model numbers, credentials, and named
+ * tools directly from the requirement rather than maintaining an occupation-
+ * specific dictionary.
+ *
+ * @param {string} text
+ * @returns {Set<string>}
+ */
+function getPass2NamedTokens(text) {
+  const rawTokens = text.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || [];
+
+  return new Set(
+    rawTokens
+      .filter((token, index) => {
+        if (PASS_2_GENERIC_NAMED_WORD_EXCLUSIONS.has(token)) {
+          return false;
+        }
+
+        const hasUppercase = /[A-Z]/.test(token);
+        const hasLowercase = /[a-z]/.test(token);
+        const hasNumber = /\d/.test(token);
+        const isAcronym = token.length >= 2 && hasUppercase && !hasLowercase;
+        const hasInternalCapital = /^[A-Z]?[a-z]+[A-Z]/.test(token);
+        const isCapitalizedName = index > 0 && /^[A-Z][a-z]{2,}$/.test(token);
+
+        return hasNumber || isAcronym || hasInternalCapital || isCapitalizedName;
+      })
+      .map((token) => token.toLowerCase())
+  );
+}
+
+/**
+ * @param {string} requirement
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function sharesPass2NamedConcept(requirement, evidenceText) {
+  const requirementNames = getPass2NamedTokens(requirement);
+  const evidenceNames = getPass2NamedTokens(evidenceText);
+
+  return [...requirementNames].some((requirementName) => {
+    return [...evidenceNames].some((evidenceName) => {
+      return requirementName === evidenceName ||
+        (Math.min(requirementName.length, evidenceName.length) >= 3 &&
+          (requirementName.startsWith(evidenceName) ||
+            evidenceName.startsWith(requirementName)));
+    });
+  });
+}
+
+/**
+ * Job-title and section-heading fragments provide context but cannot support a
+ * classification by themselves.
+ *
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function isPass2HeadingOnlyEvidence(evidenceText) {
+  const letters = evidenceText.replace(/[^A-Za-z]/g, "");
+  const wordCount = (evidenceText.match(/[A-Za-z]+/g) || []).length;
+  const uppercaseWordCount =
+    (evidenceText.match(/\b[A-Z][A-Z-]{1,}\b/g) || []).length;
+  const hasSentenceEnding = /[.!?]\s*$/.test(evidenceText);
+  const hasShortLocationHeader =
+    wordCount <= 8 &&
+    /,\s*[A-Z]{2}\b/.test(evidenceText) &&
+    !hasSentenceEnding;
+  const hasDateRange = /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/i.test(
+    evidenceText
+  );
+  const startsWithActionVerb =
+    /^(?:achieved|administered|analyzed|assessed|built|collaborated|communicated|coordinated|created|delivered|designed|developed|diagnosed|documented|facilitated|implemented|improved|investigated|led|maintained|managed|operated|optimized|planned|prepared|produced|resolved|supported|tested|trained|updated|used|validated|wrote)\b/i.test(
+      evidenceText.trim()
+    );
+
+  if (hasDateRange) {
+    return false;
+  }
+
+  return letters.length > 0 &&
+    ((wordCount <= 6 && letters === letters.toUpperCase()) ||
+      (wordCount <= 10 &&
+        uppercaseWordCount >= 3 &&
+        !startsWithActionVerb &&
+        !hasSentenceEnding) ||
+      (hasShortLocationHeader && !startsWithActionVerb));
+}
+
+/**
+ * Employer/date lines provide tenure context but do not describe performed
+ * work. Longer dated sentences with action language remain substantive.
+ *
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function isPass2EmploymentContextEvidence(evidenceText) {
+  const hasDateRange = /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/i.test(
+    evidenceText
+  );
+
+  if (!hasDateRange) {
+    return false;
+  }
+
+  const withoutDateRanges = evidenceText.replace(
+    /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/gi,
+    " "
+  );
+  const remainingWordCount =
+    (withoutDateRanges.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).length;
+  const hasActionLanguage =
+    /\b(?:achieved|administered|analyzed|assessed|built|collaborated|communicated|coordinated|created|delivered|designed|developed|diagnosed|documented|facilitated|implemented|improved|investigated|led|maintained|managed|operated|optimized|planned|prepared|produced|resolved|supported|tested|trained|updated|used|validated|wrote)\b/i.test(
+      withoutDateRanges
+    );
+
+  return remainingWordCount <= 12 && !hasActionLanguage;
+}
+
+/**
+ * A short heading immediately followed by an employer/date line is job-title
+ * context. It is retained only in batches that contain a duration requirement.
+ *
+ * @param {string[]} resumeBullets
+ * @param {number} index
+ * @returns {boolean}
+ */
+function isPass2JobTitleContext(resumeBullets, index) {
+  return isPass2HeadingOnlyEvidence(resumeBullets[index]) &&
+    index + 1 < resumeBullets.length &&
+    isPass2EmploymentContextEvidence(resumeBullets[index + 1]);
+}
+
+/**
+ * Compare a retained job title with a duration requirement without treating
+ * the title as standalone capability evidence.
+ *
+ * @param {string} requirement
+ * @param {string} contextText
+ * @returns {boolean}
+ */
+function pass2JobTitleSupportsDurationContext(requirement, contextText) {
+  if (!isPass2HeadingOnlyEvidence(contextText)) {
+    return false;
+  }
+
+  const requirementTokens = getPass2EvidenceTokens(requirement);
+  const contextTokens = getPass2EvidenceTokens(contextText);
+  const sharedTokenCount = [...requirementTokens].filter((requirementToken) => {
+    return [...contextTokens].some((contextToken) => {
+      return pass2TokensAreRelated(requirementToken, contextToken);
+    });
+  }).length;
+
+  return sharedTokenCount >= 2;
+}
+
+/**
+ * @param {string} requirement
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function pass2EvidenceMeaningfullyOverlaps(requirement, evidenceText) {
+  if (isPass2HeadingOnlyEvidence(evidenceText)) {
+    return false;
+  }
+
+  const isDatedContextLine = /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/i.test(
+    evidenceText
+  );
+
+  if (isDatedContextLine) {
+    return false;
+  }
+
+  const requirementTokens = getPass2EvidenceTokens(requirement);
+  const evidenceTokens = getPass2EvidenceTokens(evidenceText);
+  const sharedRequirementTokens = [...requirementTokens].filter((requirementToken) => {
+    return [...evidenceTokens].some((evidenceToken) => {
+      return pass2TokensAreRelated(requirementToken, evidenceToken);
+    });
+  });
+
+  if (sharedRequirementTokens.length >= 2) {
+    return true;
+  }
+
+  if (sharesPass2NamedConcept(requirement, evidenceText)) {
+    return true;
+  }
+
+  const sharesGenericConceptFamily = PASS_2_GENERIC_CONCEPT_FAMILIES.some((family) => {
+    return family.test(requirement) && family.test(evidenceText);
+  });
+
+  return sharesGenericConceptFamily && requirementTokens.size <= 6;
+}
+
+/**
+ * Break compound requirements into independently supportable clauses without
+ * maintaining occupation-specific vocabulary. The prefix before an "across"
+ * audience list is retained so transferable activity can remain partial even
+ * when none of the required audiences match.
+ *
+ * @param {string} requirement
+ * @returns {string[]}
+ */
+function getPass2RequirementClauses(requirement) {
+  const shouldSplitConjunctions = getPass2EvidenceTokens(requirement).size <= 8;
+  const clauses = requirement
+    .split(shouldSplitConjunctions ? /;|\band\b/i : /;/)
+    .map((clause) => clause.replace(/^[\s,]+|[\s,.]+$/g, "").trim())
+    .filter(Boolean);
+  const acrossMatch = requirement.match(/\b(.+?)\s+across\s+(.+?)(?:[.;]|$)/i);
+
+  if (acrossMatch) {
+    clauses.push(acrossMatch[1].trim());
+    clauses.push(
+      ...acrossMatch[2]
+        .split(/,|\band\b/i)
+        .map((clause) => clause.trim())
+        .filter(Boolean)
+    );
+  }
+
+  return [...new Set(clauses)];
+}
+
+/**
+ * @param {string} requirement
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function pass2EvidenceSupportsAnyRequirementClause(requirement, evidenceText) {
+  const acrossMatch = requirement.match(/\b(.+?)\s+across\s+.+/i);
+
+  if (acrossMatch) {
+    return pass2EvidenceMeaningfullyOverlaps(
+      acrossMatch[1],
+      evidenceText
+    );
+  }
+
+  return pass2EvidenceMeaningfullyOverlaps(requirement, evidenceText) ||
+    getPass2RequirementClauses(requirement).some((clause) => {
+      return pass2EvidenceMeaningfullyOverlaps(clause, evidenceText);
+    });
+}
+
+/**
+ * Gap recovery uses a higher bar than partial validation so broad verbs such
+ * as maintain, work, or communicate cannot create evidence by themselves.
+ *
+ * @param {string} requirement
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function pass2EvidenceStronglySupportsAnyRequirementClause(
+  requirement,
+  evidenceText
+) {
+  return getPass2GapRecoveryEvidenceScore(requirement, evidenceText) > 0;
+}
+
+/**
+ * @param {string} requirement
+ * @param {string} evidenceText
+ * @returns {number}
+ */
+function getPass2GapRecoveryEvidenceScore(requirement, evidenceText) {
+  return [requirement, ...getPass2RequirementClauses(requirement)].reduce(
+    (bestScore, clause) => {
+      const requirementTokens = getPass2EvidenceTokens(clause);
+      const evidenceTokens = getPass2EvidenceTokens(evidenceText);
+      const sharedTokenCount = [...requirementTokens].filter(
+        (requirementToken) => {
+          return [...evidenceTokens].some((evidenceToken) => {
+            return pass2TokensAreRelated(requirementToken, evidenceToken);
+          });
+        }
+      ).length;
+      const sharesSpecializedConcept =
+        PASS_2_GAP_RECOVERY_CONCEPT_FAMILIES.some((family) => {
+          return family.test(clause) && family.test(evidenceText);
+        });
+      const score = sharedTokenCount >= 2
+        ? sharedTokenCount
+        : sharesPass2NamedConcept(clause, evidenceText)
+          ? 2
+          : sharesSpecializedConcept
+            ? 3
+            : 0;
+
+      return Math.max(bestScore, score);
+    },
+    0
+  );
+}
+
+/**
+ * @param {string} requirement
+ * @returns {number | null}
+ */
+function getPass2RequiredYears(requirement) {
+  const numericMatch = requirement.match(/\b(\d+)\+?\s+years?\b/i);
+
+  if (numericMatch) {
+    return Number(numericMatch[1]);
+  }
+
+  const wordNumbers = new Map([
+    ["one", 1],
+    ["two", 2],
+    ["three", 3],
+    ["four", 4],
+    ["five", 5],
+    ["six", 6],
+    ["seven", 7],
+    ["eight", 8],
+    ["nine", 9],
+    ["ten", 10],
+  ]);
+  const wordMatch = requirement.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten)\+?\s+years?\b/i
+  );
+
+  return wordMatch ? /** @type {number} */ (wordNumbers.get(wordMatch[1].toLowerCase())) : null;
+}
+
+/**
+ * @param {string} requirement
+ * @param {string[]} evidenceTexts
+ * @returns {boolean}
+ */
+function coveredPass2EvidenceIsComplete(requirement, evidenceTexts) {
+  const combinedEvidence = evidenceTexts.join("\n");
+  const requiredYears = getPass2RequiredYears(requirement);
+
+  if (requiredYears !== null) {
+    const dateRanges = [...combinedEvidence.matchAll(
+      /\b(20\d{2})\s*[-–—]\s*(20\d{2}|present)\b/gi
+    )];
+    const intervals = dateRanges
+      .map((dateRange) => {
+        const start = Number(dateRange[1]);
+        const end = dateRange[2].toLowerCase() === "present"
+          ? new Date().getFullYear()
+          : Number(dateRange[2]);
+        return { start, end };
+      })
+      .filter((interval) => {
+        return Number.isFinite(interval.start) &&
+          Number.isFinite(interval.end) &&
+          interval.end >= interval.start;
+      })
+      .sort((first, second) => first.start - second.start);
+    /** @type {{ start: number, end: number }[]} */
+    const mergedIntervals = [];
+
+    intervals.forEach((interval) => {
+      const previous = mergedIntervals[mergedIntervals.length - 1];
+
+      if (!previous || interval.start > previous.end) {
+        mergedIntervals.push({ ...interval });
+        return;
+      }
+
+      previous.end = Math.max(previous.end, interval.end);
+    });
+
+    const supportedYears = mergedIntervals.reduce((total, interval) => {
+      return total + (interval.end - interval.start);
+    }, 0);
+
+    if (supportedYears < requiredYears) {
+      return false;
+    }
+
+    const hasSubstantiveRoleEvidence = evidenceTexts.some((evidenceText) => {
+      const withoutDateRanges = evidenceText.replace(
+        /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/gi,
+        " "
+      );
+      const remainingWordCount =
+        (withoutDateRanges.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).length;
+
+      return remainingWordCount >= 7 && !isPass2HeadingOnlyEvidence(withoutDateRanges);
+    });
+
+    if (!hasSubstantiveRoleEvidence) {
+      return false;
+    }
+
+    const supportingContextMatch = requirement.match(
+      /\bsupporting\s+([^.;]+)/i
+    );
+
+    if (supportingContextMatch) {
+      const substantiveEvidence = evidenceTexts.filter((evidenceText) => {
+        return !isPass2EmploymentContextEvidence(evidenceText);
+      });
+      const supportsRequiredContext = substantiveEvidence.some((evidenceText) => {
+        return pass2EvidenceMeaningfullyOverlaps(
+          supportingContextMatch[1],
+          evidenceText
+        );
+      });
+
+      if (!supportsRequiredContext) {
+        return false;
+      }
+    }
+  }
+
+  const requiresExplicitCollaboration =
+    /\bcollaborat\w*|^\s*partner\s+with\b/i.test(requirement);
+  const demonstratesCollaboration =
+    /\bcollaborat\w*|\bcoordinat\w*|\bbring\w*[^.!?]{0,160}\btogether\b|\bpartner\w+\s+with\b|\bwork\w*\s+(?:closely\s+)?with\b|\balongside\b|\bjoint\w*|\bshared\s+workflow\b/i.test(
+      combinedEvidence
+    );
+
+  if (requiresExplicitCollaboration && !demonstratesCollaboration) {
+    return false;
+  }
+
+  const requiresEmbeddedExperience =
+    /\bexperience\b.*\b(?:working|operating|practicing|serving)\b/i.test(
+      requirement
+    );
+  const citesOnlyExternalCoordination = evidenceTexts.length > 0 &&
+    evidenceTexts.every((evidenceText) => {
+      return /\b(?:coordinat|communicat|liais|request)\w*.*\b(?:outside|external|third[- ]party)\b/i.test(
+        evidenceText
+      );
+    });
+
+  if (requiresEmbeddedExperience && citesOnlyExternalCoordination) {
+    return false;
+  }
+
+  const requiresDiagnosis =
+    /\b(?:diagnos|debug|investigat|troubleshoot)\w*/i.test(requirement);
+  const requiresRepair =
+    /\b(?:fix|repair|correct|remediat|resolv)\w*/i.test(requirement);
+  const demonstratesDiagnosis =
+    /\b(?:diagnos|debug|investigat|troubleshoot)\w*/i.test(combinedEvidence);
+  const demonstratesRepair =
+    /\b(?:fix(?:ed|es|ing)?|repair(?:ed|ing)|correct(?:ed|ing)|remediat(?:e|ed|ing)|resolv(?:e|ed|ing))\b/i.test(
+      combinedEvidence
+    );
+
+  if (
+    requiresDiagnosis &&
+    requiresRepair &&
+    (!demonstratesDiagnosis || !demonstratesRepair)
+  ) {
+    return false;
+  }
+
+  const acrossMatch = requirement.match(/\bacross\s+(.+?)(?:[.;]|$)/i);
+
+  if (acrossMatch) {
+    const requiredGroups = acrossMatch[1]
+      .split(/,|\band\b/i)
+      .map((group) => group.trim())
+      .filter(Boolean);
+    const supportsEveryGroup = requiredGroups.length < 2 ||
+      requiredGroups.every((group) => {
+        return pass2EvidenceMeaningfullyOverlaps(group, combinedEvidence);
+      });
+
+    if (!supportsEveryGroup) {
+      return false;
+    }
+  }
+
+  const requiredForListMatch = requirement.match(
+    /\bfor\s+([^.;]+,\s*[^.;]+,\s*(?:and\s+)?[^.;]+)/i
+  );
+
+  if (
+    requiredForListMatch &&
+    !/\b(?:such as|for example|e\.g\.|including)\b/i.test(requirement)
+  ) {
+    const requiredActivities = requiredForListMatch[1]
+      .split(/,|\band\b/i)
+      .map((activity) => activity.trim())
+      .filter(Boolean);
+    const supportsEveryActivity = requiredActivities.length < 3 ||
+      requiredActivities.every((activity) => {
+        return pass2EvidenceMeaningfullyOverlaps(activity, combinedEvidence);
+      });
+
+    if (!supportsEveryActivity) {
+      return false;
+    }
+  }
+
+  const compoundClauses = requirement
+    .split(";")
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+
+  if (compoundClauses.length > 1) {
+    return compoundClauses.every((clause) => {
+      return evidenceTexts.some((evidenceText) => {
+        return pass2EvidenceMeaningfullyOverlaps(clause, evidenceText);
+      });
+    });
+  }
+
+  const requiredNamedItems = getPass2NamedTokens(requirement);
+  const citedNamedItems = new Set(
+    (combinedEvidence.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).map((token) => {
+      return token.toLowerCase();
+    })
+  );
+  const isExampleList = /\b(?:such as|for example|e\.g\.|one of)\b/i.test(
+    requirement
+  );
+  const allowsUnnamedAlternative = /\b(?:or another|or equivalent)\b/i.test(
+    requirement
+  );
+  /** @param {string} requiredName */
+  const hasNamedItem = (requiredName) => {
+    return [...citedNamedItems].some((citedName) => {
+      return requiredName === citedName ||
+        (Math.min(requiredName.length, citedName.length) >= 3 &&
+          (requiredName.startsWith(citedName) || citedName.startsWith(requiredName)));
+    });
+  };
+
+  if (
+    requiredNamedItems.size > 0 &&
+    !isExampleList &&
+    !allowsUnnamedAlternative
+  ) {
+    const requiresAllNamedItems = !/\bor\b/i.test(requirement);
+    const hasEveryNamedItem = [...requiredNamedItems].every((requiredName) => {
+      return hasNamedItem(requiredName);
+    });
+    const hasAnyNamedItem = [...requiredNamedItems].some((requiredName) => {
+      return hasNamedItem(requiredName);
+    });
+
+    if (
+      (requiresAllNamedItems && !hasEveryNamedItem) ||
+      (!requiresAllNamedItems && !hasAnyNamedItem)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /**
  * Constrain model citations to the compact evidence IDs supplied for this
  * analysis. The application maps these IDs back to the original bullet text.
  *
  * @param {string[]} evidenceIds
+ * @param {number} requirementCount
  * @returns {object}
  */
-function createPass2AnalysisSchema(evidenceIds) {
+function createPass2AnalysisSchema(evidenceIds, requirementCount) {
   return {
     type: "object",
     properties: {
       matches: {
         type: "array",
-        maxItems: PASS_1_MAX_REQUIREMENTS,
+        maxItems: requirementCount,
         items: {
           type: "object",
           properties: {
-            requirement: {
-              type: "string",
-            },
             status: {
               type: "string",
               enum: MATCH_STATUSES,
             },
             matchedBulletIds: {
               type: "array",
+              maxItems: evidenceIds.length > 0 ? 5 : 0,
               items: evidenceIds.length > 0
                 ? {
                     type: "string",
@@ -1014,17 +1775,101 @@ function createPass2AnalysisSchema(evidenceIds) {
               enum: [...MATCH_SEVERITIES, null],
             },
           },
-          required: ["requirement", "status", "matchedBulletIds", "severity"],
+          required: ["status", "matchedBulletIds", "severity"],
           additionalProperties: false,
         },
       },
-      summary: {
-        type: "string",
-      },
     },
-    required: ["matches", "summary"],
+    required: ["matches"],
     additionalProperties: false,
   };
+}
+
+/**
+ * Requirement text and summaries are application-owned. Hydrating them after
+ * constrained generation keeps model output small and prevents altered or
+ * truncated requirement copies from invalidating an otherwise usable result.
+ *
+ * @param {unknown} value
+ * @param {string[]} requirements
+ */
+function hydratePass2ModelResult(value, requirements) {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  const result = /** @type {{ matches?: unknown, summary?: unknown }} */ (value);
+
+  if (Array.isArray(result.matches)) {
+    result.matches.forEach((match, index) => {
+      if (match && typeof match === "object" && index < requirements.length) {
+        /** @type {{ requirement?: unknown }} */ (match).requirement =
+          requirements[index];
+      }
+    });
+  }
+
+  result.summary = "Code-owned Pass 2 comparison.";
+}
+
+/**
+ * Ask a separate model session to audit the draft semantically. This avoids
+ * relying on an occupation-specific synonym list for paraphrases, context, and
+ * compound requirements while retaining code-owned evidence IDs.
+ *
+ * @param {LanguageModelGlobal} languageModel
+ * @param {string[]} requirements
+ * @param {{ id: string, text: string, kind: "substantive" | "context" }[]} resumeEvidence
+ * @param {Pass2ModelResult} draftResult
+ * @param {string[]} evidenceIds
+ * @returns {Promise<Pass2ModelResult>}
+ */
+async function reviewPass2Analysis(
+  languageModel,
+  requirements,
+  resumeEvidence,
+  draftResult,
+  evidenceIds
+) {
+  /** @type {LanguageModelSession | null} */
+  let session = null;
+
+  try {
+    session = await languageModel.create({
+      initialPrompts: [
+        {
+          role: "system",
+          content: PASS_2_REVIEW_SYSTEM_PROMPT,
+        },
+      ],
+    });
+
+    const rawResult = await session.prompt(
+      JSON.stringify(
+        {
+          requirements,
+          resumeEvidence,
+          draftComparison: draftResult,
+        },
+        null,
+        2
+      ),
+      {
+        responseConstraint: createPass2AnalysisSchema(
+          evidenceIds,
+          requirements.length
+        ),
+      }
+    );
+    const parsedResult = parseModelJson(rawResult, "Pass 2 evidence audit");
+    hydratePass2ModelResult(parsedResult, requirements);
+
+    return /** @type {Pass2ModelResult} */ (parsedResult);
+  } finally {
+    if (session) {
+      session.destroy();
+    }
+  }
 }
 
 /**
@@ -1180,6 +2025,66 @@ function deduplicatePass2EvidenceIds(value) {
 }
 
 /**
+ * After the model has already failed once, restore exact one-to-one requirement
+ * coverage conservatively. Recognized returned matches are reordered by their
+ * code-owned requirement string; omissions become gaps, while extra or
+ * duplicate matches are discarded.
+ *
+ * @param {unknown} value
+ * @param {string[]} requirements
+ */
+function normalizeRetryablePass2MatchCoverage(value, requirements) {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  const result = /** @type {{ matches?: unknown, summary?: unknown }} */ (value);
+
+  if (!Array.isArray(result.matches)) {
+    return;
+  }
+
+  /** @type {Map<string, object>} */
+  const firstMatchByRequirement = new Map();
+
+  result.matches.forEach((match) => {
+    if (!match || typeof match !== "object") {
+      return;
+    }
+
+    const requirement = /** @type {{ requirement?: unknown }} */ (match).requirement;
+
+    if (
+      typeof requirement === "string" &&
+      requirements.includes(requirement) &&
+      !firstMatchByRequirement.has(requirement)
+    ) {
+      firstMatchByRequirement.set(requirement, match);
+    }
+  });
+
+  result.matches = requirements.map((requirement) => {
+    const matchedResult = firstMatchByRequirement.get(requirement);
+
+    if (matchedResult) {
+      return matchedResult;
+    }
+
+    debugLog("Pass 2 retry inserted conservative gap", { requirement });
+    return {
+      requirement,
+      status: "gap",
+      matchedBulletIds: [],
+      severity: "medium",
+    };
+  });
+
+  if (typeof result.summary !== "string") {
+    result.summary = "Some requirements lacked a valid model match and were treated as gaps.";
+  }
+}
+
+/**
  * @param {unknown} value
  * @param {string[]} requirements
  * @param {Map<string, string>} resumeEvidenceById
@@ -1210,6 +2115,12 @@ function assertValidPass2AnalysisResult(value, requirements, resumeEvidenceById)
     }
 
     const candidate = /** @type {{ requirement?: unknown, status?: unknown, matchedBulletIds?: unknown, severity?: unknown }} */ (match);
+
+    if (candidate.requirement !== requirements[index]) {
+      throw createModelOutputError(
+        `Pass 2 match ${index + 1} did not copy the provided requirement exactly.`
+      );
+    }
 
     if (
       typeof candidate.status !== "string" ||
@@ -1271,6 +2182,462 @@ function assertValidPass2AnalysisResult(value, requirements, resumeEvidenceById)
     if (!validSeverity) {
       throw createModelOutputError(`Pass 2 match ${index + 1} had an invalid severity.`);
     }
+  });
+}
+
+/**
+ * Reject covered classifications that conflict with deterministic completeness
+ * checks. Semantic citation and gap judgments are handled by the independent
+ * evidence-audit model because lexical overlap is not reliable across domains.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function assertSemanticallySupportedPass2Analysis(result, requirements, resumeEvidenceById) {
+  result.matches.forEach((match, index) => {
+    const requirement = requirements[index];
+    const citedEvidenceTexts = match.matchedBulletIds.map((evidenceId) => {
+      return /** @type {string} */ (resumeEvidenceById.get(evidenceId.trim()));
+    });
+
+    if (
+      match.status === "covered" &&
+      !coveredPass2EvidenceIsComplete(requirement, citedEvidenceTexts)
+    ) {
+      throw createModelOutputError(
+        `Pass 2 match ${index + 1} was covered but its citations support only part of the requirement.`
+      );
+    }
+
+  });
+}
+
+/**
+ * Remove resume headers and job-title fragments from semantic citations. If
+ * the independent reviewer replaced useful draft evidence with a header, reuse
+ * only recognized, substantive draft citations. Otherwise normalize safely to
+ * a gap rather than presenting unsupported evidence to the user.
+ *
+ * @param {Pass2ModelResult} reviewedResult
+ * @param {Pass2ModelResult} draftResult
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2ContextOnlyCitations(
+  reviewedResult,
+  draftResult,
+  requirements,
+  resumeEvidenceById
+) {
+  reviewedResult.matches.forEach((match, index) => {
+    if (match.status === "gap") {
+      return;
+    }
+
+    const substantiveIds = match.matchedBulletIds.filter((evidenceId) => {
+      const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+      const isDurationRequirement = getPass2RequiredYears(requirements[index]) !== null;
+
+      return typeof evidenceText === "string" &&
+        (!isPass2HeadingOnlyEvidence(evidenceText) ||
+          isDurationRequirement) &&
+        (isDurationRequirement || !isPass2EmploymentContextEvidence(evidenceText));
+    });
+
+    if (substantiveIds.length > 0) {
+      match.matchedBulletIds = substantiveIds;
+      return;
+    }
+
+    const draftMatch = draftResult.matches[index];
+    const fallbackIds = draftMatch && draftMatch.status !== "gap"
+      ? draftMatch.matchedBulletIds.filter((evidenceId) => {
+          const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+          const isDurationRequirement =
+            getPass2RequiredYears(requirements[index]) !== null;
+
+          return typeof evidenceText === "string" &&
+            (!isPass2HeadingOnlyEvidence(evidenceText) ||
+              isDurationRequirement) &&
+            (isDurationRequirement || !isPass2EmploymentContextEvidence(evidenceText));
+        })
+      : [];
+
+    if (fallbackIds.length > 0) {
+      debugLog(`Pass 2 match ${index + 1} replaced context-only citations`, {
+        from: match.matchedBulletIds,
+        to: fallbackIds,
+      });
+      match.matchedBulletIds = [...new Set(fallbackIds)];
+      return;
+    }
+
+    debugLog(`Pass 2 match ${index + 1} normalized to gap`, {
+      reason: "only resume header or job-title context was cited",
+    });
+    match.status = "gap";
+    match.matchedBulletIds = [];
+    match.severity = "medium";
+  });
+}
+
+/**
+ * Pair substantive role evidence with the code-owned employment date context
+ * needed for duration requirements. Dates corroborate tenure but never upgrade
+ * a model classification because calendar time alone cannot establish that the
+ * dated roles involved the required domain, context, or kind of work.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2DurationCitations(result, requirements, resumeEvidenceById) {
+  result.matches.forEach((match, index) => {
+    const requiredYears = getPass2RequiredYears(requirements[index]);
+
+    if (requiredYears === null) {
+      return;
+    }
+
+    const substantiveIds = match.matchedBulletIds.filter((evidenceId) => {
+      const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+      return typeof evidenceText === "string" &&
+        !isPass2EmploymentContextEvidence(evidenceText) &&
+        !isPass2HeadingOnlyEvidence(evidenceText);
+    });
+    const contextIds = [...resumeEvidenceById.entries()]
+      .filter(([, evidenceText]) => {
+        return isPass2EmploymentContextEvidence(evidenceText) ||
+          isPass2HeadingOnlyEvidence(evidenceText);
+      })
+      .slice(0, 4)
+      .map(([evidenceId]) => evidenceId);
+    const fallbackSubstantiveId = [...resumeEvidenceById.entries()].find(
+      ([, evidenceText]) => {
+        return !isPass2EmploymentContextEvidence(evidenceText) &&
+          !isPass2HeadingOnlyEvidence(evidenceText) &&
+          (evidenceText.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).length >= 7;
+      }
+    )?.[0];
+
+    if (match.status === "gap") {
+      const roleContextIds = contextIds.filter((evidenceId) => {
+        const evidenceText = resumeEvidenceById.get(evidenceId);
+
+        return typeof evidenceText === "string" &&
+          pass2JobTitleSupportsDurationContext(
+            requirements[index],
+            evidenceText
+          );
+      });
+      const durationEvidenceIds = [
+        ...(fallbackSubstantiveId ? [fallbackSubstantiveId] : []),
+        ...roleContextIds,
+        ...contextIds.filter((evidenceId) => {
+          return !roleContextIds.includes(evidenceId);
+        }),
+      ].slice(0, 5);
+      const durationEvidenceTexts = durationEvidenceIds.map((evidenceId) => {
+        return /** @type {string} */ (resumeEvidenceById.get(evidenceId));
+      });
+      const hasSupportedTenure = roleContextIds.length > 0 &&
+        coveredPass2EvidenceIsComplete(
+          `${requiredYears} years of experience`,
+          durationEvidenceTexts
+        );
+
+      if (hasSupportedTenure) {
+        match.status = "partial";
+        match.matchedBulletIds = durationEvidenceIds;
+        match.severity = "medium";
+      }
+
+      return;
+    }
+
+    const effectiveSubstantiveIds = substantiveIds.length > 0
+      ? substantiveIds
+      : fallbackSubstantiveId
+        ? [fallbackSubstantiveId]
+        : [];
+
+    if (effectiveSubstantiveIds.length === 0 || contextIds.length === 0) {
+      return;
+    }
+
+    match.matchedBulletIds = [
+      ...effectiveSubstantiveIds.slice(0, Math.max(1, 5 - contextIds.length)),
+      ...contextIds,
+    ].slice(0, 5);
+  });
+}
+
+/**
+ * Remove clearly extraneous citations only when at least one stronger
+ * substantive citation remains. Duration context is retained solely for
+ * duration requirements. This keeps semantic paraphrases intact when lexical
+ * checks cannot confidently identify a stronger citation.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2ExtraneousCitations(
+  result,
+  requirements,
+  resumeEvidenceById
+) {
+  result.matches.forEach((match, index) => {
+    if (match.status === "gap" || match.matchedBulletIds.length < 2) {
+      return;
+    }
+
+    const isDurationRequirement =
+      getPass2RequiredYears(requirements[index]) !== null;
+    const meaningfulSubstantiveIds = match.matchedBulletIds.filter((evidenceId) => {
+      const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+
+      return typeof evidenceText === "string" &&
+        !isPass2EmploymentContextEvidence(evidenceText) &&
+        !isPass2HeadingOnlyEvidence(evidenceText) &&
+        pass2EvidenceMeaningfullyOverlaps(requirements[index], evidenceText);
+    });
+
+    if (meaningfulSubstantiveIds.length === 0) {
+      return;
+    }
+
+    const normalizedIds = match.matchedBulletIds.filter((evidenceId) => {
+      const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+
+      return typeof evidenceText === "string" &&
+        (pass2EvidenceMeaningfullyOverlaps(requirements[index], evidenceText) ||
+          (isDurationRequirement &&
+            (isPass2EmploymentContextEvidence(evidenceText) ||
+              isPass2HeadingOnlyEvidence(evidenceText))));
+    });
+
+    if (normalizedIds.length < match.matchedBulletIds.length) {
+      debugLog(`Pass 2 match ${index + 1} removed extraneous citations`, {
+        from: match.matchedBulletIds,
+        to: normalizedIds,
+      });
+      match.matchedBulletIds = normalizedIds;
+    }
+  });
+}
+
+/**
+ * An explicit "partner with [audience]" requirement needs evidence of both a
+ * relationship activity and the named audience. Shared incidental nouns do
+ * not establish partnership.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2PartnerEvidence(
+  result,
+  requirements,
+  resumeEvidenceById
+) {
+  result.matches.forEach((match, index) => {
+    const audienceMatch = requirements[index].match(
+      /^\s*partner\s+with\s+(.+?)(?:\s+on\b|,|[.;]|$)/i
+    );
+
+    if (!audienceMatch) {
+      return;
+    }
+
+    const audienceTokens = getPass2EvidenceTokens(audienceMatch[1]);
+    const qualifyingIds = [...resumeEvidenceById.entries()]
+      .filter(([, evidenceText]) => {
+        if (isPass2EmploymentContextEvidence(evidenceText)) {
+          return false;
+        }
+
+        const demonstratesRelationship =
+          /\b(?:partner|collaborat|coordinat|support|help|work)\w*(?:\s+\w+){0,3}\s+with\b|\b(?:help|support)\w*/i.test(
+            evidenceText
+          );
+        const evidenceTokens = getPass2EvidenceTokens(evidenceText);
+        const supportsAudience = audienceTokens.size > 0 &&
+          [...audienceTokens].every((audienceToken) => {
+            return [...evidenceTokens].some((evidenceToken) => {
+              return pass2TokensAreRelated(audienceToken, evidenceToken);
+            });
+          });
+
+        return demonstratesRelationship && supportsAudience;
+      })
+      .slice(0, 2)
+      .map(([evidenceId]) => evidenceId);
+
+    if (qualifyingIds.length === 0) {
+      match.status = "gap";
+      match.matchedBulletIds = [];
+      match.severity = "medium";
+      return;
+    }
+
+    match.matchedBulletIds = qualifyingIds;
+
+    if (match.status === "gap") {
+      match.status = "partial";
+      match.severity = "medium";
+    }
+  });
+}
+
+/**
+ * A partial must retain evidence for at least one meaningful clause. This
+ * removes classifications based only on generic communication, incidental
+ * nouns, or unrelated workplace activity.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2UnsupportedPartials(
+  result,
+  requirements,
+  resumeEvidenceById
+) {
+  result.matches.forEach((match, index) => {
+    if (
+      match.status !== "partial" ||
+      /^\s*partner\s+with\b/i.test(requirements[index])
+    ) {
+      return;
+    }
+
+    const isSupportedDurationPartial =
+      getPass2RequiredYears(requirements[index]) !== null &&
+      match.matchedBulletIds.some((evidenceId) => {
+        const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+
+        return typeof evidenceText === "string" &&
+          pass2JobTitleSupportsDurationContext(
+            requirements[index],
+            evidenceText
+          );
+      });
+
+    if (isSupportedDurationPartial) {
+      return;
+    }
+
+    const hasClauseSupport = match.matchedBulletIds.some((evidenceId) => {
+      const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+
+      return typeof evidenceText === "string" &&
+        pass2EvidenceSupportsAnyRequirementClause(
+          requirements[index],
+          evidenceText
+        );
+    });
+
+    if (!hasClauseSupport) {
+      match.status = "gap";
+      match.matchedBulletIds = [];
+      match.severity = "medium";
+    }
+  });
+}
+
+/**
+ * Restore a conservative partial when a model gap overlooks concrete evidence
+ * for one clause. Collaboration and explicit partner/audience requirements are
+ * excluded because generic coordination is especially prone to false transfer.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2OverlookedGapEvidence(
+  result,
+  requirements,
+  resumeEvidenceById
+) {
+  result.matches.forEach((match, index) => {
+    if (
+      match.status !== "gap" ||
+      /\bcollaborat\w*|\bcross[- ]functional\b/i.test(requirements[index]) ||
+      /^\s*partner\s+with\b/i.test(requirements[index])
+    ) {
+      return;
+    }
+
+    const supportingEntry = [...resumeEvidenceById.entries()]
+      .filter(([, evidenceText]) => {
+        return !isPass2EmploymentContextEvidence(evidenceText);
+      })
+      .map(([evidenceId, evidenceText]) => {
+        return {
+          evidenceId,
+          score: getPass2GapRecoveryEvidenceScore(
+            requirements[index],
+            evidenceText
+          ),
+        };
+      })
+      .filter((candidate) => candidate.score > 0)
+      .sort((first, second) => second.score - first.score)[0];
+
+    if (supportingEntry) {
+      match.status = "partial";
+      match.matchedBulletIds = [supportingEntry.evidenceId];
+      match.severity = "medium";
+    }
+  });
+}
+
+/**
+ * Deterministic incompleteness should reduce a score, not turn an otherwise
+ * valid model response into a terminal malformed-output error.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2DeterministicCompleteness(
+  result,
+  requirements,
+  resumeEvidenceById
+) {
+  result.matches.forEach((match, index) => {
+    if (match.status !== "covered") {
+      return;
+    }
+
+    const citedEvidenceTexts = match.matchedBulletIds.map((evidenceId) => {
+      return /** @type {string} */ (resumeEvidenceById.get(evidenceId.trim()));
+    });
+
+    if (coveredPass2EvidenceIsComplete(requirements[index], citedEvidenceTexts)) {
+      return;
+    }
+
+    const hasMeaningfulPartialEvidence = citedEvidenceTexts.some((evidenceText) => {
+      return pass2EvidenceSupportsAnyRequirementClause(
+        requirements[index],
+        evidenceText
+      );
+    });
+    const normalizedStatus = hasMeaningfulPartialEvidence ? "partial" : "gap";
+
+    debugLog(`Pass 2 match ${index + 1} normalized to ${normalizedStatus}`, {
+      reason: hasMeaningfulPartialEvidence
+        ? "cited evidence supports only part of the requirement"
+        : "cited evidence does not substantiate any required part",
+    });
+    match.status = normalizedStatus;
+    match.matchedBulletIds = hasMeaningfulPartialEvidence
+      ? match.matchedBulletIds
+      : [];
+    match.severity = "medium";
   });
 }
 
@@ -1345,7 +2712,7 @@ function normalizeRetryablePass2Evidence(value, resumeEvidenceById) {
  * @param {string[]} resumeBullets
  * @returns {Promise<Pass2AnalysisResult>}
  */
-async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets) {
+async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBullets) {
   return withModelOutputRetry(async (isRetry) => {
     const languageModel = getLanguageModelGlobal();
 
@@ -1359,12 +2726,33 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
       PASS_1_MAX_REQUIREMENTS
     );
     const normalizedResumeBullets = validatePromptStringArray(resumeBullets, "Resume bullets");
-    const resumeEvidence = normalizedResumeBullets.map((text, index) => {
-      return {
-        id: `B${index + 1}`,
-        text,
-      };
+    const needsDurationContext = normalizedRequirements.some((requirement) => {
+      return getPass2RequiredYears(requirement) !== null;
     });
+    const resumeEvidence = normalizedResumeBullets
+      .map((text, index) => {
+        const isEmploymentContext = isPass2EmploymentContextEvidence(text);
+        const isJobTitleContext = isPass2JobTitleContext(
+          normalizedResumeBullets,
+          index
+        );
+
+        return {
+          id: `B${index + 1}`,
+          text,
+          kind: /** @type {"substantive" | "context"} */ (
+            isEmploymentContext || isJobTitleContext
+              ? "context"
+              : "substantive"
+          ),
+          isJobTitleContext,
+        };
+      })
+      .filter((evidence) => {
+        return (!isPass2HeadingOnlyEvidence(evidence.text) ||
+            (needsDurationContext && evidence.isJobTitleContext)) &&
+          (needsDurationContext || evidence.kind === "substantive");
+      });
     const resumeEvidenceById = new Map(
       resumeEvidence.map((evidence) => [evidence.id, evidence.text])
     );
@@ -1398,9 +2786,17 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
       });
 
       const rawResult = await session.prompt(promptInput, {
-        responseConstraint: createPass2AnalysisSchema([...resumeEvidenceById.keys()]),
+        responseConstraint: createPass2AnalysisSchema(
+          [...resumeEvidenceById.keys()],
+          normalizedRequirements.length
+        ),
       });
       const parsedResult = parseModelJson(rawResult, "Pass 2");
+      hydratePass2ModelResult(parsedResult, normalizedRequirements);
+
+      if (isRetry) {
+        normalizeRetryablePass2MatchCoverage(parsedResult, normalizedRequirements);
+      }
 
       normalizePass2Severity(parsedResult);
       deduplicatePass2EvidenceIds(parsedResult);
@@ -1415,8 +2811,72 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
         resumeEvidenceById
       );
 
+      const reviewedResult = await reviewPass2Analysis(
+        languageModel,
+        normalizedRequirements,
+        resumeEvidence,
+        parsedResult,
+        [...resumeEvidenceById.keys()]
+      );
+
+      if (isRetry) {
+        normalizeRetryablePass2MatchCoverage(reviewedResult, normalizedRequirements);
+      }
+
+      normalizePass2Severity(reviewedResult);
+      deduplicatePass2EvidenceIds(reviewedResult);
+
+      if (isRetry) {
+        normalizeRetryablePass2Evidence(reviewedResult, resumeEvidenceById);
+      }
+
+      normalizePass2ContextOnlyCitations(
+        reviewedResult,
+        parsedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2DurationCitations(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2DeterministicCompleteness(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2PartnerEvidence(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2OverlookedGapEvidence(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2UnsupportedPartials(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2Severity(reviewedResult);
+
+      assertValidPass2AnalysisResult(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+
+      assertSemanticallySupportedPass2Analysis(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
+
       const analysis = {
-        matches: parsedResult.matches.map((match, index) => {
+        matches: reviewedResult.matches.map((match, index) => {
           return {
             requirement: normalizedRequirements[index],
             status: match.status,
@@ -1426,7 +2886,7 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
             severity: match.severity,
           };
         }),
-        summary: parsedResult.summary.trim(),
+        summary: reviewedResult.summary.trim(),
       };
 
       debugLog("Pass 2 analysis", analysis);
@@ -1438,6 +2898,336 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
       }
     }
   }, "Pass 2");
+}
+
+/**
+ * Give the completed batch results one bounded cross-batch audit. Only
+ * classifications with a concrete risk signal are included, so this adds at
+ * most one compact model session per resume instead of another session for
+ * every batch.
+ *
+ * @param {string[]} requirements
+ * @param {string[]} resumeBullets
+ * @param {MatchResult[]} matches
+ * @returns {Promise<MatchResult[]>}
+ */
+async function auditConsolidatedPass2Matches(
+  requirements,
+  resumeBullets,
+  matches
+) {
+  const languageModel = getLanguageModelGlobal();
+
+  if (!languageModel) {
+    throw new Error("LanguageModel is not available in this browser.");
+  }
+
+  const needsDurationContext = requirements.some((requirement) => {
+    return getPass2RequiredYears(requirement) !== null;
+  });
+  const resumeEvidence = resumeBullets
+    .map((text, index) => {
+      const isEmploymentContext = isPass2EmploymentContextEvidence(text);
+      const isJobTitleContext = isPass2JobTitleContext(resumeBullets, index);
+
+      return {
+        id: `B${index + 1}`,
+        text,
+        kind: /** @type {"substantive" | "context"} */ (
+          isEmploymentContext || isJobTitleContext
+            ? "context"
+            : "substantive"
+        ),
+        isJobTitleContext,
+      };
+    })
+    .filter((evidence) => {
+      return (!isPass2HeadingOnlyEvidence(evidence.text) ||
+          (needsDurationContext && evidence.isJobTitleContext)) &&
+        (needsDurationContext || evidence.kind === "substantive");
+    });
+  const resumeEvidenceById = new Map(
+    resumeEvidence.map((evidence) => [evidence.id, evidence.text])
+  );
+  /** @type {Map<string, string>} */
+  const firstEvidenceIdByText = new Map();
+
+  resumeEvidence.forEach((evidence) => {
+    if (!firstEvidenceIdByText.has(evidence.text)) {
+      firstEvidenceIdByText.set(evidence.text, evidence.id);
+    }
+  });
+
+  /** @type {Pass2ModelResult} */
+  const consolidatedDraft = {
+    matches: matches.map((match) => {
+      return {
+        requirement: match.requirement,
+        status: match.status,
+        matchedBulletIds: match.matchedBullets
+          .map((bullet) => firstEvidenceIdByText.get(bullet) || "")
+          .filter(Boolean),
+        severity: match.severity,
+      };
+    }),
+    summary: "Consolidated Pass 2 batch results.",
+  };
+
+  normalizePass2ExtraneousCitations(
+    consolidatedDraft,
+    requirements,
+    resumeEvidenceById
+  );
+
+  const candidateIndexes = consolidatedDraft.matches
+    .map((match, index) => {
+      const substantiveCitations = match.matchedBulletIds
+        .map((evidenceId) => resumeEvidenceById.get(evidenceId.trim()))
+        .filter((evidenceText) => {
+          return typeof evidenceText === "string" &&
+            !isPass2EmploymentContextEvidence(evidenceText);
+        });
+      const hasOnlyWeakCitations = substantiveCitations.length > 0 &&
+        substantiveCitations.every((evidenceText) => {
+          return !pass2EvidenceMeaningfullyOverlaps(
+            requirements[index],
+            /** @type {string} */ (evidenceText)
+          );
+        });
+
+      if (match.status === "partial") {
+        const requiresDiagnosis =
+          /\b(?:diagnos|debug|investigat|troubleshoot)\w*/i.test(
+            requirements[index]
+          );
+        const requiresRepair =
+          /\b(?:fix|repair|correct|remediat|resolv)\w*/i.test(
+            requirements[index]
+          );
+        const highRiskPartial = hasOnlyWeakCitations ||
+          /^\s*partner\s+with\b/i.test(requirements[index]) ||
+          (requiresDiagnosis && requiresRepair);
+
+        return { index, priority: highRiskPartial ? 0 : 1 };
+      }
+
+      if (match.status === "gap") {
+        const hasPotentiallyOverlookedEvidence = resumeEvidence.some((evidence) => {
+          return evidence.kind === "substantive" &&
+            pass2EvidenceStronglySupportsAnyRequirementClause(
+              requirements[index],
+              evidence.text
+            );
+        });
+
+        return hasPotentiallyOverlookedEvidence
+          ? { index, priority: 0 }
+          : null;
+      }
+
+      if (
+        getPass2RequiredYears(requirements[index]) !== null ||
+        /\bacross\b/i.test(requirements[index]) ||
+        /^\s*partner\s+with\b/i.test(requirements[index])
+      ) {
+        return { index, priority: 0 };
+      }
+
+      return hasOnlyWeakCitations ? { index, priority: 0 } : null;
+    })
+    .filter((candidate) => candidate !== null)
+    .sort((first, second) => {
+      return first.priority - second.priority || first.index - second.index;
+    })
+    .slice(0, PASS_2_CONSOLIDATED_AUDIT_MAX_REQUIREMENTS)
+    .map((candidate) => candidate.index);
+
+  if (candidateIndexes.length > 0) {
+    const candidateRequirements = candidateIndexes.map(
+      (index) => requirements[index]
+    );
+    /** @type {Pass2ModelResult} */
+    const candidateDraft = {
+      matches: candidateIndexes.map(
+        (index) => consolidatedDraft.matches[index]
+      ),
+      summary: consolidatedDraft.summary,
+    };
+    const reviewedCandidates = await withModelOutputRetry(async (isRetry) => {
+      const reviewedResult = await reviewPass2Analysis(
+        languageModel,
+        candidateRequirements,
+        resumeEvidence,
+        candidateDraft,
+        [...resumeEvidenceById.keys()]
+      );
+
+      if (isRetry) {
+        normalizeRetryablePass2MatchCoverage(
+          reviewedResult,
+          candidateRequirements
+        );
+      }
+
+      normalizePass2Severity(reviewedResult);
+      deduplicatePass2EvidenceIds(reviewedResult);
+
+      if (isRetry) {
+        normalizeRetryablePass2Evidence(reviewedResult, resumeEvidenceById);
+      }
+
+      normalizePass2ContextOnlyCitations(
+        reviewedResult,
+        candidateDraft,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2DurationCitations(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2ExtraneousCitations(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2DeterministicCompleteness(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2PartnerEvidence(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2OverlookedGapEvidence(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2UnsupportedPartials(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      normalizePass2Severity(reviewedResult);
+      assertValidPass2AnalysisResult(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+      assertSemanticallySupportedPass2Analysis(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
+
+      return reviewedResult;
+    }, "Pass 2 consolidated evidence audit");
+
+    candidateIndexes.forEach((originalIndex, candidateIndex) => {
+      consolidatedDraft.matches[originalIndex] =
+        reviewedCandidates.matches[candidateIndex];
+    });
+  }
+
+  normalizePass2ExtraneousCitations(
+    consolidatedDraft,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2DeterministicCompleteness(
+    consolidatedDraft,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2UnsupportedPartials(
+    consolidatedDraft,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2Severity(consolidatedDraft);
+
+  return consolidatedDraft.matches.map((match, index) => {
+    return {
+      requirement: requirements[index],
+      status: match.status,
+      matchedBullets: match.matchedBulletIds.map((evidenceId) => {
+        return /** @type {string} */ (
+          resumeEvidenceById.get(evidenceId.trim())
+        );
+      }),
+      severity: match.severity,
+    };
+  });
+}
+
+/**
+ * Keep each model response bounded so long requirement lists cannot exhaust
+ * the on-device model's output budget. Evidence IDs remain stable across every
+ * batch because each batch derives them from the same original resume array.
+ *
+ * @param {string[]} requirements
+ * @param {string[]} resumeBullets
+ * @returns {Promise<Pass2AnalysisResult>}
+ */
+async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets) {
+  const normalizedRequirements = validatePromptStringArray(
+    requirements,
+    "Requirements",
+    PASS_1_MAX_REQUIREMENTS
+  );
+  const normalizedResumeBullets = validatePromptStringArray(
+    resumeBullets,
+    "Resume bullets"
+  );
+
+  if (normalizedRequirements.length === 0) {
+    return {
+      matches: [],
+      summary: "No job requirements were available to compare.",
+    };
+  }
+
+  /** @type {MatchResult[]} */
+  const matches = [];
+
+  for (
+    let batchStart = 0;
+    batchStart < normalizedRequirements.length;
+    batchStart += PASS_2_REQUIREMENT_BATCH_SIZE
+  ) {
+    const batchRequirements = normalizedRequirements.slice(
+      batchStart,
+      batchStart + PASS_2_REQUIREMENT_BATCH_SIZE
+    );
+    const batchAnalysis = await analyzeRequirementBatchWithResumeBullets(
+      batchRequirements,
+      normalizedResumeBullets
+    );
+
+    matches.push(...batchAnalysis.matches);
+  }
+
+  const auditedMatches = await auditConsolidatedPass2Matches(
+    normalizedRequirements,
+    normalizedResumeBullets,
+    matches
+  );
+  const statusCounts = auditedMatches.reduce(
+    (counts, match) => {
+      counts[match.status] += 1;
+      return counts;
+    },
+    { covered: 0, partial: 0, gap: 0 }
+  );
+
+  return {
+    matches: auditedMatches,
+    summary: `Resume evidence covers ${statusCounts.covered} requirements, partially supports ${statusCounts.partial}, and leaves ${statusCounts.gap} gaps.`,
+  };
 }
 
 /**

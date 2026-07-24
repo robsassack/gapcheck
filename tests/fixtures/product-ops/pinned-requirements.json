@@ -1,0 +1,20 @@
+[
+  "Candidates should be able to create adaptable, repeatable processes for roadmap intake, release readiness, customer feedback triage, and post-launch measurement",
+  "They must be able to document decisions, maintain clear owners and next steps, and follow through consistently",
+  "Strong written communication is important because recommendations must be concise and useful to stakeholders who cannot review every raw data source or meeting note",
+  "Candidates do not need to be data scientists, but they should be comfortable querying or analyzing data, finding inconsistencies, and explaining what the numbers do and do not prove; SQL experience is strongly preferred; Experience with a BI tool such as Looker, Tableau, Mode, or Power BI is helpful; Strong spreadsheet skills are needed for quick analysis, scenario modeling, and operational tracking; Candidates should be able to combine quantitative findings with qualitative customer feedback instead of relying on a single source",
+  "Experience in healthcare, care delivery, insurance, another regulated industry, or a compliance-heavy environment is valuable but not required when the candidate has strong product operations experience elsewhere",
+  "Strong cross-functional collaboration is required",
+  "Candidates should be comfortable facilitating meetings, asking clarifying questions, resolving conflicting input, and helping teams leave discussions with clear decisions and owners",
+  "Experience supporting agile product teams, working with Jira or Linear, maintaining documentation in Confluence or Notion, and coordinating release planning across multiple teams is preferred",
+  "Candidates should have at least five years of experience in product operations, business operations, product analytics, program management, consulting, or a similar role supporting software teams",
+  "B2B SaaS experience is preferred, especially work with enterprise customers or complex implementation cycles",
+  "This is a senior individual-contributor role that requires independent prioritization, sound judgment, and knowing when to escalate decisions",
+  "This is a remote-friendly United States role",
+  "Candidates must be available for core working hours aligned with the Eastern or Central time zones and for occasional travel two to four times per year",
+  "Partner with product managers on roadmap priorities, customer feedback, launch timelines, and operational constraints.",
+  "Synthesizing support tickets, customer interviews, CRM records, analytics dashboards, sales feedback, implementation notes, and internal planning documents.",
+  "Identify patterns, surface risks early, and help teams decide where process, tooling, or communication changes will have the greatest impact.",
+  "Prepare launch checklists, track dependencies, confirm enablement materials, monitor early adoption, and coordinate follow-up when customers experience confusion or friction.",
+  "Coordinate launches across product, engineering, customer-facing teams, and operational stakeholders."
+]

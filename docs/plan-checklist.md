@@ -147,31 +147,55 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Label explicit source bullets and preserve wrapped compound bullets as single extraction candidates
   - [x] Compare extracted requirements across repeated runs
   - [x] Check for missing must-haves, duplicated requirements, and unstable grouping
-- [ ] Audit Pass 2 independently
+- [x] Audit Pass 2 independently
   - [x] Reference resume evidence with code-owned bullet IDs and map valid IDs back to original bullet text
   - [x] Reject and retry unsupported or unrecognized matched-bullet evidence
   - [x] After retry, normalize unsupported statuses conservatively while rejecting fabricated bullets
   - [x] Normalize severity deterministically so covered uses `null` and missing partial/gap severity defaults to `medium`
-  - [ ] Check explicit resume evidence is not classified as a gap
-  - [ ] Check transferable evidence is consistently distinguished from direct evidence
-  - [ ] Check cited resume bullets genuinely support each classification
+  - [x] Check explicit resume evidence is not classified as a gap
+  - [x] Check transferable evidence is consistently distinguished from direct evidence
+  - [x] Check cited resume bullets genuinely support each classification
 - [x] Refine the prompt only for systematic errors reproduced across the benchmark set
   - [x] Make Pass 2 select and validate evidence before assigning a status
   - [x] Require evidence to demonstrate the same core capability, work domain, or a clearly established equivalent
   - [x] Remove or tightly qualify the instruction to prefer partial over gap
   - [x] Keep genuinely adjacent and transferable experience eligible for partial credit
-- [ ] Improve evidence selection and matched-bullet relevance
+- [x] Improve evidence selection and matched-bullet relevance
   - [x] Treat unrelated-domain activity and generic word overlap as no evidence
   - [x] Prevent names, contact details, employer names, and job titles from serving as the sole evidence for a match
   - [x] Require full or nearly full evidence before marking a compound requirement covered
-  - [ ] Re-run the Web Developer benchmarks and confirm warehouse evidence no longer supports web-specific requirements
+  - [x] Re-run the Web Developer benchmarks and confirm warehouse evidence no longer supports web-specific requirements
   - [x] Re-run Product Operations to confirm the refinement does not suppress legitimate transferable evidence
-- [ ] Evaluate severity-weighted scoring
-  - [ ] Pin a proposed formula in the plan before changing code
-  - [ ] Compare the current and proposed formulas against every benchmark
+- [ ] Add representative score-calibration benchmarks using synthetic content
+  - [ ] Add a fictional junior full-stack benchmark covering frontend, backend, cloud, DevOps, and optional technology experience
+  - [ ] Add a fictional software-consultancy benchmark covering collaborative development practices, testing, client work, and non-resume-verifiable constraints
+  - [ ] Use invented employers, candidates, responsibilities, qualifications, and resume evidence rather than copied or lightly anonymized real material
+  - [ ] Pin expected requirement themes, important classifications, and acceptable score ranges
+  - [ ] Run controlled and repeated comparisons to distinguish extraction variation from classification variation
+- [ ] Classify extracted requirements by source type
+  - [ ] Distinguish required qualifications, preferred qualifications, core responsibilities, and work or application constraints
+  - [ ] Preserve explicit source qualifiers such as required, preferred, desirable, plus, and not required
+  - [ ] Keep source-type metadata code-owned after extraction and available to scoring
+  - [ ] Add schema validation and malformed-output handling for requirement metadata
+- [ ] Separate non-resume-verifiable constraints from qualification evidence
+  - [ ] Identify availability, location, work arrangement, travel, schedule, and interview or trial-period commitments
+  - [ ] Treat a resume's silence about those constraints as unknown rather than a gap
+  - [ ] Exclude unknown constraints from the resume qualification score
+  - [ ] Preserve extracted constraints for the Phase 8 preference-fit analysis
+  - [ ] Test explicit matches, explicit conflicts, and missing resume information
+- [ ] Audit score sensitivity to requirement extraction and grouping
+  - [ ] Compare scores when closely related requirements are split versus combined
+  - [ ] Confirm optional lists and compound requirements do not receive disproportionate influence
+  - [ ] Check that the 20-item cap and eligibility-first ordering do not materially distort representative scores
+  - [ ] Prefer stable theme-level influence over sensitivity to exact requirement count
+- [ ] Evaluate requirement-aware scoring
+  - [ ] Pin proposed source-type weights and a severity formula in the plan before changing code
+  - [ ] Ensure preferred qualifications influence the score less than required qualifications
+  - [ ] Ensure responsibilities do not overwhelm candidate qualifications
+  - [ ] Compare status-only, source-weighted, severity-weighted, and combined formulas against every benchmark
   - [ ] Reject the change if severity variation makes scores less stable or less intuitive
   - [ ] If adopted, implement the formula as a pure code-owned function
-  - [ ] Add deterministic browser-run tests for all statuses and severities
+  - [ ] Add deterministic browser-run tests for all statuses, source types, severities, and zero-weight or excluded constraints
 - [ ] Re-run malformed-output, long-input, and manual browser tests
 - [ ] Document the resulting scoring behavior and known limitations
 

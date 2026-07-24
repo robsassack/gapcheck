@@ -114,8 +114,8 @@ const RUN_MODES = Object.freeze({
   },
   "pass2-pinned": {
     label: "Pass 2 audit with pinned requirements",
-    pass1Strategy: "once-per-family",
-    hint: "Isolates Pass 2 variation by reusing one requirement set for every repetition.",
+    pass1Strategy: "fixture-pinned",
+    hint: "Isolates Pass 2 by loading a fixed requirement set and skipping Pass 1 entirely.",
   },
 });
 
@@ -634,6 +634,60 @@ async function runBenchmarks() {
   }
 
   /**
+   * Load the stable requirement set owned by each benchmark family. Pinned
+   * Pass 2 mode must not depend on a model session for Pass 1.
+   *
+   * @param {BenchmarkFamily} family
+   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }>}
+   */
+  async function loadPinnedPass1(family) {
+    const startedAt = new Date().toISOString();
+
+    try {
+      setStatus(`${family.label}: loading pinned Pass 2 requirements…`);
+      const fixtureText = await loadFixture(
+        `${family.id}/pinned-requirements.json`
+      );
+      const parsedRequirements = /** @type {unknown} */ (JSON.parse(fixtureText));
+
+      if (
+        !Array.isArray(parsedRequirements) ||
+        parsedRequirements.length === 0 ||
+        parsedRequirements.length > analysisHelpers.pass1MaxRequirements ||
+        parsedRequirements.some((requirement) => {
+          return typeof requirement !== "string" || requirement.trim().length === 0;
+        })
+      ) {
+        throw new Error("Pinned requirement fixture must contain 1-20 non-empty strings.");
+      }
+
+      const requirements = /** @type {string[]} */ (parsedRequirements).map(
+        (requirement) => requirement.trim()
+      );
+
+      return {
+        startedAt,
+        durationMs: 0,
+        requirements,
+        error: null,
+        warnings: findPass1Warnings(
+          family,
+          requirements,
+          analysisHelpers.pass1MaxRequirements
+        ),
+      };
+    } catch (err) {
+      return {
+        startedAt,
+        durationMs: 0,
+        requirements: [],
+        error: err instanceof Error ? err.message : String(err),
+        warnings: [],
+      };
+    }
+  }
+
+  /**
    * @param {BenchmarkFamily} family
    * @param {BenchmarkCase} benchmarkCase
    * @param {number} repetition
@@ -730,7 +784,9 @@ async function runBenchmarks() {
         break;
       }
 
-      const jobText = await loadFixture(`${family.id}/job.txt`);
+      const jobText = mode === "pass2-pinned"
+        ? ""
+        : await loadFixture(`${family.id}/job.txt`);
       const familyCases = family.cases.filter((benchmarkCase) =>
         selectedCaseIds.has(benchmarkCase.id)
       );
@@ -775,7 +831,7 @@ async function runBenchmarks() {
       }
 
       if (mode === "pass2-pinned") {
-        const pinnedPass1 = await executePass1(family, 1, jobText, "pinned");
+        const pinnedPass1 = await loadPinnedPass1(family);
 
         for (let repetition = 1; repetition <= repetitions && !cancelRequested; repetition += 1) {
           for (const benchmarkCase of familyCases) {

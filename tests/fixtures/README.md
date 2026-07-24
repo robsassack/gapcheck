@@ -144,9 +144,10 @@ The available modes are:
   extraction stability. The runner warns when extraction reaches the production
   requirement limit, omits a configured audit theme, or includes a configured
   illustrative example that Pass 1 should exclude.
-- **Pass 2 audit with pinned requirements:** run Pass 1 once per family, then
-  reuse that one requirement set across every resume and repetition. Use this
-  to isolate classification and evidence-selection variation.
+- **Pass 2 audit with pinned requirements:** load the family’s fixed
+  `pinned-requirements.json` fixture and skip Pass 1 entirely, then reuse that
+  requirement set across every resume and repetition. Use this to isolate
+  classification and evidence-selection variation.
 
 Pass 2 automatically rejects and retries responses where covered or partial
 matches cite no evidence, gap matches cite evidence, or a cited bullet does not
