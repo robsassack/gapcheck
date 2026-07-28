@@ -1,0 +1,23 @@
+Priya Sable
+Software Consultant
+
+Experience
+
+Blue Heron Assembly — Software Consultant
+February 2022 to present
+
+- Delivered production workflow features in TypeScript and Java for three client teams, using React and Spring Boot.
+- Paired with developers several times each week, opened Git pull requests, and gave and incorporated code-review feedback.
+- Used test-driven development for pricing and eligibility rules and maintained unit, API integration, and Playwright end-to-end suites.
+- Facilitated discovery sessions with client operations staff and divided an ambiguous permit-review process into demonstrable stories.
+- Presented architecture tradeoffs, delivery risks, and weekly progress to client managers with varied technical backgrounds.
+- Worked in iterative delivery teams with product leads, designers, quality specialists, engineers, and client subject-matter experts.
+- Traced production failures through logs and metrics, wrote operational runbooks, and coached client developers before handoff.
+- Learned public-works terminology from client interviews and revised the team's data model after field-user feedback.
+
+Earlier Experience
+
+Amber Kite Cooperative — Application Developer
+July 2020 to January 2022
+
+- Shipped small C# service changes with a collaborative product team using Git, automated tests, and two-week delivery cycles.

@@ -1,6 +1,7 @@
 {
   "private": true,
   "scripts": {
+    "test": "node tests/run-scoring-tests.js",
     "typecheck": "tsc --project jsconfig.json"
   },
   "devDependencies": {

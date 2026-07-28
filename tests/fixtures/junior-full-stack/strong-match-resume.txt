@@ -1,0 +1,23 @@
+Maya Rook
+Junior Software Developer
+
+Experience
+
+Lantern Parcel Systems — Software Developer
+March 2024 to present
+
+- Built responsive React and TypeScript screens for a parcel-routing dashboard, using semantic HTML, keyboard navigation, labeled form controls, and reusable CSS layouts.
+- Added Node.js and Express endpoints for shipment exceptions and wrote PostgreSQL queries and migrations for the supporting data.
+- Wrote Vitest unit coverage for pricing rules and Supertest integration coverage for REST endpoints backed by a test database.
+- Worked in Git feature branches, opened pull requests, addressed teammate review comments, and reviewed small changes from two other junior developers.
+- Diagnosed a production filtering defect with browser network tools and service logs, then added a monitor for repeated API failures.
+- Shipped services to AWS through the team's GitHub Actions pipeline and updated Docker configuration with guidance from a platform engineer.
+- Documented API behavior and raised delivery blockers during planning with product and design teammates.
+
+Projects
+
+- Built and deployed a small GraphQL reading-list service in Python and used Terraform tutorials to provision its development resources.
+
+Education
+
+Great Elm Technical College — Associate Degree, Software Development

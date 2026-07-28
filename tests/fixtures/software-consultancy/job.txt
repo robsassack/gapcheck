@@ -1,0 +1,27 @@
+Software Consultant
+Kestrel Harbor Digital
+
+Kestrel Harbor Digital is a fictional consultancy that helps regional organizations replace fragile internal systems. Consultants work in small, cross-functional teams and share responsibility for software quality and client outcomes.
+
+Responsibilities
+
+- Deliver production application features with Java, C#, JavaScript, or TypeScript using a modern web framework.
+- Pair with other developers, work in short feedback cycles, and give and receive constructive code review through Git pull requests.
+- Use test-driven development when practical and maintain useful unit, integration, and end-to-end automated tests.
+- Join client discovery sessions, ask clarifying questions, and turn ambiguous workflow needs into small deliverable stories.
+- Explain technical tradeoffs, delivery risks, and progress to client staff without assuming a software background.
+- Collaborate with product leads, designers, quality specialists, and client subject-matter experts in an iterative agile process.
+- Diagnose production issues, improve team documentation, and leave client teams able to maintain what was delivered.
+
+Qualifications
+
+- Two or more years delivering production software on a collaborative team.
+- Demonstrated experience with source control, automated testing, and incremental delivery.
+- Experience working directly with external clients or internal business stakeholders.
+- Ability to learn an unfamiliar domain and adapt after feedback.
+
+Work constraints
+
+- Candidates must already be authorized to work in the United States without current or future employer sponsorship.
+- Team members work from the fictional Bellwether City office two days each week.
+- Consultants must be available for client travel up to 20 percent and occasional early-morning workshops.

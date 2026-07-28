@@ -1,0 +1,28 @@
+Junior Full-Stack Developer
+Copper Finch Labs
+
+Copper Finch Labs is a fictional product studio that builds scheduling and inventory tools for neighborhood service businesses. We are hiring a junior full-stack developer to join a small product team and deliver maintainable features with guidance from senior engineers.
+
+Responsibilities
+
+- Build responsive, accessible user interfaces with HTML, CSS, TypeScript, and React.
+- Develop and maintain REST APIs with Node.js and Express.
+- Model and query application data in PostgreSQL.
+- Write unit tests for application logic and integration tests for API and database behavior.
+- Use Git branches and pull requests, participate in code review, and explain implementation choices.
+- Investigate defects using browser tools, application logs, and monitoring signals.
+- Help deploy and support services in AWS through the team's existing delivery pipeline.
+- Update technical documentation and communicate blockers to product and design partners.
+
+Qualifications
+
+- At least one year of professional software-development experience, a substantial internship, or equivalent shipped project work.
+- Working knowledge of JavaScript or TypeScript and experience building both user-facing and server-side features.
+- Familiarity with HTTP APIs and relational databases.
+- Evidence of learning from feedback and collaborating with other developers.
+
+Preferred, not required
+
+- Experience with CI/CD pipelines and Docker containers.
+- Exposure to GraphQL, Python, or Terraform.
+- Familiarity with AWS services, application monitoring, or production support.

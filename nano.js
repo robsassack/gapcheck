@@ -11,7 +11,15 @@ const MATCH_STATUS_SCORES = Object.freeze({
   covered: 1,
   partial: 0.5,
   gap: 0,
+  unknown: 0,
 });
+const WORK_CONSTRAINT_PATTERNS = Object.freeze([
+  /\b(?:authoriz(?:ed|ation)|eligible|eligibility|right)\s+to\s+work\b|\bsponsor(?:ship)?\b/i,
+  /\b(?:remote|hybrid|on[- ]?site|in[- ]office|office\s+days?|work\s+from\s+(?:the\s+)?[^.;]*office|relocat(?:e|ion)|resid(?:e|ency)|located\s+in)\b/i,
+  /\b(?:travel|travelling|traveling)\b/i,
+  /\b(?:available|availability|core\s+(?:working\s+)?hours?|time\s+zones?|early[- ]morning|evening|overnight|weekends?|shift|workshop\s+schedule)\b/i,
+  /\b(?:background\s+check|drug\s+screen|trial\s+period|take[- ]home|interview\s+availability)\b/i,
+]);
 
 const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Extract the most important concrete job requirements from the provided job posting.",
@@ -115,7 +123,15 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
  */
 
 /**
- * @typedef {"covered" | "partial" | "gap"} MatchStatus
+ * @typedef {"covered" | "partial" | "gap" | "unknown"} MatchStatus
+ */
+
+/**
+ * @typedef {"covered" | "partial" | "gap"} ModelMatchStatus
+ */
+
+/**
+ * @typedef {"resume-qualification" | "work-constraint"} RequirementSourceType
  */
 
 /**
@@ -128,6 +144,7 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
  * @property {MatchStatus} status
  * @property {string[]} matchedBullets
  * @property {MatchSeverity | null} severity
+ * @property {RequirementSourceType} sourceType
  */
 
 /**
@@ -139,7 +156,7 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
 /**
  * @typedef {object} Pass2ModelMatch
  * @property {string} requirement
- * @property {MatchStatus} status
+ * @property {ModelMatchStatus} status
  * @property {string[]} matchedBulletIds
  * @property {MatchSeverity | null} severity
  */
@@ -183,6 +200,16 @@ function getLanguageModelGlobal() {
  *     analyzeRequirementsWithResumeBullets: typeof analyzeRequirementsWithResumeBullets,
  *     analyzeRequirementsWithSavedResume: typeof analyzeRequirementsWithSavedResume,
  *     computeOverallScore: typeof computeOverallScore,
+ *     classifyRequirementSourceType: typeof classifyRequirementSourceType,
+ *     testHooks: {
+ *       isPass2HeadingOnlyEvidence: typeof isPass2HeadingOnlyEvidence,
+ *       isPass2EmploymentContextEvidence: typeof isPass2EmploymentContextEvidence,
+ *       pass2JobTitleSupportsDurationContext: typeof pass2JobTitleSupportsDurationContext,
+ *       getPass2GapRecoveryEvidenceScore: typeof getPass2GapRecoveryEvidenceScore,
+ *       coveredPass2EvidenceIsComplete: typeof coveredPass2EvidenceIsComplete,
+ *       pass2EvidenceDirectlyCoversRequirement: typeof pass2EvidenceDirectlyCoversRequirement,
+ *       normalizePass2EvidenceForTesting: typeof normalizePass2EvidenceForTesting
+ *     },
  *     enableDebug: typeof enableDebug,
  *     disableDebug: typeof disableDebug,
  *     isDebugEnabled: typeof isDebugEnabled
@@ -217,6 +244,20 @@ function debugLog(label, data) {
   }
 
   console.log(`[GapCheck debug] ${label}`, data);
+}
+
+/**
+ * Identify constraints that a resume normally cannot establish by omission.
+ * These remain visible in the result for future preference-fit analysis but
+ * are excluded from the resume qualification score.
+ *
+ * @param {string} requirement
+ * @returns {RequirementSourceType}
+ */
+function classifyRequirementSourceType(requirement) {
+  return WORK_CONSTRAINT_PATTERNS.some((pattern) => pattern.test(requirement))
+    ? "work-constraint"
+    : "resume-qualification";
 }
 
 /**
@@ -1126,10 +1167,13 @@ const PASS_2_GENERIC_CONCEPT_FAMILIES = Object.freeze([
 ]);
 const PASS_2_GAP_RECOVERY_CONCEPT_FAMILIES = Object.freeze([
   /\bdiagnos\w*|\bdebug\w*|\binvestigat\w*|\btroubleshoot\w*/i,
+  /\bmonitor\w*|\bmetrics?\b|\blogs?\b|\bproduction\s+(?:issue|support)\w*/i,
   /\bfix\w*|\brepair\w*|\bcorrect\w*|\bremediat\w*|\bresolv\w*/i,
   /\boptimi[sz]\w*|\bperformance\b|\befficien\w*/i,
   /\baccessib\w*|\bkeyboard\s+navigation\b|\balternative\s+text\b|\balt\s+text\b|\bheading\s+structure\b|\bcolor\s+contrast\b|\bform\s+labels?\b/i,
-  /\bsoftware\b|\bplatform\b|\bapplications?\b|\bdigital\s+products?\b|\btechnology\b/i,
+  /\bcollaborat\w*|\bpair(?:ing|ed)?\b|\bteammates?\b|\bpeer\s+review\b|\breview\s+comments?\b|\bpull\s+requests?\b/i,
+  /\bfeedback\b|\breview\s+comments?\b|\baddress\w*[^.!?]{0,80}\bcomments?\b|\bincorporat\w*[^.!?]{0,80}\bfeedback\b/i,
+  /\bclients?\b|\bbusiness\s+stakeholders?\b|\bsubject[- ]matter\s+experts?\b|\binternal\s+(?:staff|teams?|partners?)\b/i,
 ]);
 const PASS_2_GENERIC_NAMED_WORD_EXCLUSIONS = new Set([
   "Ability",
@@ -1177,8 +1221,24 @@ function pass2TokensAreRelated(first, second) {
     return false;
   }
 
-  return Math.min(first.length, second.length) >= 5 &&
-    (first.startsWith(second) || second.startsWith(first));
+  if (
+    Math.min(first.length, second.length) >= 5 &&
+    (first.startsWith(second) || second.startsWith(first))
+  ) {
+    return true;
+  }
+
+  let commonPrefixLength = 0;
+  const shorterLength = Math.min(first.length, second.length);
+
+  while (
+    commonPrefixLength < shorterLength &&
+    first[commonPrefixLength] === second[commonPrefixLength]
+  ) {
+    commonPrefixLength += 1;
+  }
+
+  return commonPrefixLength >= 7;
 }
 
 /**
@@ -1231,6 +1291,46 @@ function sharesPass2NamedConcept(requirement, evidenceText) {
   });
 }
 
+const PASS_2_DATE_RANGE_SOURCE =
+  String.raw`\b(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+)?(20\d{2})\s*(?:[-–—]|\bto\b)\s*(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+)?(20\d{2}|present)\b`;
+
+/**
+ * @param {string} text
+ * @returns {boolean}
+ */
+function hasPass2DateRange(text) {
+  return new RegExp(PASS_2_DATE_RANGE_SOURCE, "i").test(text);
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function stripPass2DateRanges(text) {
+  return text.replace(new RegExp(PASS_2_DATE_RANGE_SOURCE, "gi"), " ");
+}
+
+/**
+ * @param {string} text
+ * @returns {{ start: number, end: number }[]}
+ */
+function getPass2DateIntervals(text) {
+  return [...text.matchAll(new RegExp(PASS_2_DATE_RANGE_SOURCE, "gi"))]
+    .map((dateRange) => {
+      const start = Number(dateRange[1]);
+      const end = dateRange[2].toLowerCase() === "present"
+        ? new Date().getFullYear()
+        : Number(dateRange[2]);
+
+      return { start, end };
+    })
+    .filter((interval) => {
+      return Number.isFinite(interval.start) &&
+        Number.isFinite(interval.end) &&
+        interval.end >= interval.start;
+    });
+}
+
 /**
  * Job-title and section-heading fragments provide context but cannot support a
  * classification by themselves.
@@ -1248,9 +1348,7 @@ function isPass2HeadingOnlyEvidence(evidenceText) {
     wordCount <= 8 &&
     /,\s*[A-Z]{2}\b/.test(evidenceText) &&
     !hasSentenceEnding;
-  const hasDateRange = /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/i.test(
-    evidenceText
-  );
+  const hasDateRange = hasPass2DateRange(evidenceText);
   const startsWithActionVerb =
     /^(?:achieved|administered|analyzed|assessed|built|collaborated|communicated|coordinated|created|delivered|designed|developed|diagnosed|documented|facilitated|implemented|improved|investigated|led|maintained|managed|operated|optimized|planned|prepared|produced|resolved|supported|tested|trained|updated|used|validated|wrote)\b/i.test(
       evidenceText.trim()
@@ -1260,8 +1358,18 @@ function isPass2HeadingOnlyEvidence(evidenceText) {
     return false;
   }
 
+  const titleCaseWords = evidenceText.match(/\b[A-Za-z][A-Za-z.+#/-]*\b/g) || [];
+  const isShortTitleCaseLine =
+    wordCount <= 8 &&
+    titleCaseWords.length > 0 &&
+    titleCaseWords.every((word) => {
+      return /^[A-Z][A-Za-z.+#/-]*$/.test(word) || /^[A-Z]{2,}$/.test(word);
+    }) &&
+    !/^technical\s+skills?\b|^skills?\b/i.test(evidenceText.trim());
+
   return letters.length > 0 &&
     ((wordCount <= 6 && letters === letters.toUpperCase()) ||
+      (isShortTitleCaseLine && !startsWithActionVerb && !hasSentenceEnding) ||
       (wordCount <= 10 &&
         uppercaseWordCount >= 3 &&
         !startsWithActionVerb &&
@@ -1277,18 +1385,13 @@ function isPass2HeadingOnlyEvidence(evidenceText) {
  * @returns {boolean}
  */
 function isPass2EmploymentContextEvidence(evidenceText) {
-  const hasDateRange = /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/i.test(
-    evidenceText
-  );
+  const hasDateRange = hasPass2DateRange(evidenceText);
 
   if (!hasDateRange) {
     return false;
   }
 
-  const withoutDateRanges = evidenceText.replace(
-    /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/gi,
-    " "
-  );
+  const withoutDateRanges = stripPass2DateRanges(evidenceText);
   const remainingWordCount =
     (withoutDateRanges.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).length;
   const hasActionLanguage =
@@ -1347,9 +1450,7 @@ function pass2EvidenceMeaningfullyOverlaps(requirement, evidenceText) {
     return false;
   }
 
-  const isDatedContextLine = /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/i.test(
-    evidenceText
-  );
+  const isDatedContextLine = hasPass2DateRange(evidenceText);
 
   if (isDatedContextLine) {
     return false;
@@ -1465,9 +1566,10 @@ function getPass2GapRecoveryEvidenceScore(requirement, evidenceText) {
         PASS_2_GAP_RECOVERY_CONCEPT_FAMILIES.some((family) => {
           return family.test(clause) && family.test(evidenceText);
         });
+      const sharesNamedConcept = sharesPass2NamedConcept(clause, evidenceText);
       const score = sharedTokenCount >= 2
         ? sharedTokenCount
-        : sharesPass2NamedConcept(clause, evidenceText)
+        : sharesNamedConcept && requirementTokens.size <= 4
           ? 2
           : sharesSpecializedConcept
             ? 3
@@ -1477,6 +1579,42 @@ function getPass2GapRecoveryEvidenceScore(requirement, evidenceText) {
     },
     0
   );
+}
+
+/**
+ * Promote only strong, action-based evidence that covers most concrete
+ * requirement tokens. This repairs clear model omissions without turning a
+ * skills heading or a single shared noun into covered experience.
+ *
+ * @param {string} requirement
+ * @param {string[]} evidenceTexts
+ * @returns {boolean}
+ */
+function pass2EvidenceDirectlyCoversRequirement(requirement, evidenceTexts) {
+  const actionEvidence = evidenceTexts.filter((evidenceText) => {
+    return /^(?:achieved|added|administered|analyzed|assessed|built|collaborated|communicated|completed|coordinated|created|delivered|designed|developed|diagnosed|documented|facilitated|implemented|improved|investigated|led|maintained|managed|modeled|operated|optimized|paired|planned|prepared|produced|resolved|reviewed|shipped|supported|tested|traced|trained|updated|used|validated|worked|wrote)\b/i.test(
+      evidenceText.trim()
+    );
+  });
+
+  if (actionEvidence.length === 0) {
+    return false;
+  }
+
+  const requirementTokens = getPass2EvidenceTokens(requirement);
+  const evidenceTokens = getPass2EvidenceTokens(actionEvidence.join("\n"));
+  const sharedTokenCount = [...requirementTokens].filter((requirementToken) => {
+    return [...evidenceTokens].some((evidenceToken) => {
+      return pass2TokensAreRelated(requirementToken, evidenceToken);
+    });
+  }).length;
+  const requiredSharedTokens = Math.max(
+    2,
+    Math.ceil(requirementTokens.size * 0.5)
+  );
+
+  return sharedTokenCount >= requiredSharedTokens &&
+    coveredPass2EvidenceIsComplete(requirement, actionEvidence);
 }
 
 /**
@@ -1519,22 +1657,7 @@ function coveredPass2EvidenceIsComplete(requirement, evidenceTexts) {
   const requiredYears = getPass2RequiredYears(requirement);
 
   if (requiredYears !== null) {
-    const dateRanges = [...combinedEvidence.matchAll(
-      /\b(20\d{2})\s*[-–—]\s*(20\d{2}|present)\b/gi
-    )];
-    const intervals = dateRanges
-      .map((dateRange) => {
-        const start = Number(dateRange[1]);
-        const end = dateRange[2].toLowerCase() === "present"
-          ? new Date().getFullYear()
-          : Number(dateRange[2]);
-        return { start, end };
-      })
-      .filter((interval) => {
-        return Number.isFinite(interval.start) &&
-          Number.isFinite(interval.end) &&
-          interval.end >= interval.start;
-      })
+    const intervals = getPass2DateIntervals(combinedEvidence)
       .sort((first, second) => first.start - second.start);
     /** @type {{ start: number, end: number }[]} */
     const mergedIntervals = [];
@@ -1559,10 +1682,7 @@ function coveredPass2EvidenceIsComplete(requirement, evidenceTexts) {
     }
 
     const hasSubstantiveRoleEvidence = evidenceTexts.some((evidenceText) => {
-      const withoutDateRanges = evidenceText.replace(
-        /\b20\d{2}\s*[-–—]\s*(?:20\d{2}|present)\b/gi,
-        " "
-      );
+      const withoutDateRanges = stripPass2DateRanges(evidenceText);
       const remainingWordCount =
         (withoutDateRanges.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).length;
 
@@ -1595,13 +1715,35 @@ function coveredPass2EvidenceIsComplete(requirement, evidenceTexts) {
   }
 
   const requiresExplicitCollaboration =
-    /\bcollaborat\w*|^\s*partner\s+with\b/i.test(requirement);
+    /\bcollaborat\w*|^\s*partner\s+with\b|\bpair(?:ing|ed)?\s+with\b/i.test(
+      requirement
+    );
   const demonstratesCollaboration =
-    /\bcollaborat\w*|\bcoordinat\w*|\bbring\w*[^.!?]{0,160}\btogether\b|\bpartner\w+\s+with\b|\bwork\w*\s+(?:closely\s+)?with\b|\balongside\b|\bjoint\w*|\bshared\s+workflow\b/i.test(
+    /\bcollaborat\w*|\bcoordinat\w*|\bbring\w*[^.!?]{0,160}\btogether\b|\bpartner\w+\s+with\b|\bwork\w*\s+(?:closely\s+)?with\b|\balongside\b|\bjoint\w*|\bshared\s+workflow\b|\bpair(?:ing|ed)?\s+with\b|\b(?:opened?|submitted?)\s+(?:Git\s+)?pull requests?\b.*\b(?:review|feedback|comments?)\b|\breviewed?\b.*\b(?:changes?|pull requests?|code)\b/i.test(
       combinedEvidence
     );
 
   if (requiresExplicitCollaboration && !demonstratesCollaboration) {
+    return false;
+  }
+
+  if (
+    /\bpair(?:ing|ed)?\s+with\b/i.test(requirement) &&
+    !/\bpair(?:ing|ed)?\s+with\b/i.test(combinedEvidence)
+  ) {
+    return false;
+  }
+
+  const requiredTestLevels = [
+    { required: /\bunit\b/i.test(requirement), evidence: /\bunit\b/i.test(combinedEvidence) },
+    { required: /\bintegration\b/i.test(requirement), evidence: /\bintegration\b/i.test(combinedEvidence) },
+    {
+      required: /\bend[- ]to[- ]end\b|\bE2E\b/i.test(requirement),
+      evidence: /\bend[- ]to[- ]end\b|\bE2E\b|\bPlaywright\b|\bCypress\b/i.test(combinedEvidence),
+    },
+  ];
+
+  if (requiredTestLevels.some((level) => level.required && !level.evidence)) {
     return false;
   }
 
@@ -2313,13 +2455,26 @@ function normalizePass2DurationCitations(result, requirements, resumeEvidenceByI
       })
       .slice(0, 4)
       .map(([evidenceId]) => evidenceId);
-    const fallbackSubstantiveId = [...resumeEvidenceById.entries()].find(
-      ([, evidenceText]) => {
+    const rankedSubstantiveCandidates = [...resumeEvidenceById.entries()]
+      .filter(([, evidenceText]) => {
         return !isPass2EmploymentContextEvidence(evidenceText) &&
           !isPass2HeadingOnlyEvidence(evidenceText) &&
           (evidenceText.match(/[A-Za-z][A-Za-z0-9.+#/-]*/g) || []).length >= 7;
-      }
-    )?.[0];
+      })
+      .map(([evidenceId, evidenceText]) => {
+        return {
+          evidenceId,
+          score: getPass2GapRecoveryEvidenceScore(
+            requirements[index],
+            evidenceText
+          ),
+        };
+      })
+      .sort((first, second) => second.score - first.score);
+    const rankedSubstantiveIds = rankedSubstantiveCandidates.map(
+      (candidate) => candidate.evidenceId
+    );
+    const fallbackSubstantiveId = rankedSubstantiveIds[0];
 
     if (match.status === "gap") {
       const roleContextIds = contextIds.filter((evidenceId) => {
@@ -2332,7 +2487,7 @@ function normalizePass2DurationCitations(result, requirements, resumeEvidenceByI
           );
       });
       const durationEvidenceIds = [
-        ...(fallbackSubstantiveId ? [fallbackSubstantiveId] : []),
+        ...rankedSubstantiveIds.slice(0, 2),
         ...roleContextIds,
         ...contextIds.filter((evidenceId) => {
           return !roleContextIds.includes(evidenceId);
@@ -2341,16 +2496,19 @@ function normalizePass2DurationCitations(result, requirements, resumeEvidenceByI
       const durationEvidenceTexts = durationEvidenceIds.map((evidenceId) => {
         return /** @type {string} */ (resumeEvidenceById.get(evidenceId));
       });
-      const hasSupportedTenure = roleContextIds.length > 0 &&
+      const hasRelevantRoleEvidence =
+        (rankedSubstantiveCandidates[0]?.score || 0) > 0 ||
+        roleContextIds.length > 0;
+      const hasSupportedTenure = hasRelevantRoleEvidence &&
         coveredPass2EvidenceIsComplete(
-          `${requiredYears} years of experience`,
+          requirements[index],
           durationEvidenceTexts
         );
 
       if (hasSupportedTenure) {
-        match.status = "partial";
+        match.status = "covered";
         match.matchedBulletIds = durationEvidenceIds;
-        match.severity = "medium";
+        match.severity = null;
       }
 
       return;
@@ -2389,42 +2547,97 @@ function normalizePass2ExtraneousCitations(
   resumeEvidenceById
 ) {
   result.matches.forEach((match, index) => {
-    if (match.status === "gap" || match.matchedBulletIds.length < 2) {
+    if (
+      match.status === "gap" ||
+      classifyRequirementSourceType(requirements[index]) === "work-constraint"
+    ) {
       return;
     }
 
     const isDurationRequirement =
       getPass2RequiredYears(requirements[index]) !== null;
-    const meaningfulSubstantiveIds = match.matchedBulletIds.filter((evidenceId) => {
+    const citedEvidenceTexts = match.matchedBulletIds
+      .map((evidenceId) => resumeEvidenceById.get(evidenceId.trim()))
+      .filter((evidenceText) => typeof evidenceText === "string");
+
+    if (
+      isDurationRequirement &&
+      coveredPass2EvidenceIsComplete(
+        requirements[index],
+        /** @type {string[]} */ (citedEvidenceTexts)
+      )
+    ) {
+      return;
+    }
+
+    const meaningfulCitedIds = match.matchedBulletIds.filter((evidenceId) => {
       const evidenceText = resumeEvidenceById.get(evidenceId.trim());
 
       return typeof evidenceText === "string" &&
         !isPass2EmploymentContextEvidence(evidenceText) &&
         !isPass2HeadingOnlyEvidence(evidenceText) &&
-        pass2EvidenceMeaningfullyOverlaps(requirements[index], evidenceText);
+        getPass2GapRecoveryEvidenceScore(
+          requirements[index],
+          evidenceText
+        ) > 0;
     });
 
-    if (meaningfulSubstantiveIds.length === 0) {
+    if (meaningfulCitedIds.length > 0) {
+      const normalizedIds = match.matchedBulletIds.filter((evidenceId) => {
+        const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+
+        return typeof evidenceText === "string" &&
+          (meaningfulCitedIds.includes(evidenceId) ||
+            (isDurationRequirement &&
+              (isPass2EmploymentContextEvidence(evidenceText) ||
+                isPass2HeadingOnlyEvidence(evidenceText))));
+      });
+
+      if (normalizedIds.length < match.matchedBulletIds.length) {
+        debugLog(`Pass 2 match ${index + 1} removed extraneous citations`, {
+          from: match.matchedBulletIds,
+          to: normalizedIds,
+        });
+        match.matchedBulletIds = normalizedIds;
+      }
+
       return;
     }
 
-    const normalizedIds = match.matchedBulletIds.filter((evidenceId) => {
-      const evidenceText = resumeEvidenceById.get(evidenceId.trim());
+    const replacementIds = [...resumeEvidenceById.entries()]
+      .filter(([, evidenceText]) => {
+        return !isPass2EmploymentContextEvidence(evidenceText) &&
+          !isPass2HeadingOnlyEvidence(evidenceText);
+      })
+      .map(([evidenceId, evidenceText]) => {
+        return {
+          evidenceId,
+          score: getPass2GapRecoveryEvidenceScore(
+            requirements[index],
+            evidenceText
+          ),
+        };
+      })
+      .filter((candidate) => candidate.score > 0)
+      .sort((first, second) => second.score - first.score)
+      .slice(0, 3)
+      .map((candidate) => candidate.evidenceId);
 
-      return typeof evidenceText === "string" &&
-        (pass2EvidenceMeaningfullyOverlaps(requirements[index], evidenceText) ||
-          (isDurationRequirement &&
-            (isPass2EmploymentContextEvidence(evidenceText) ||
-              isPass2HeadingOnlyEvidence(evidenceText))));
-    });
-
-    if (normalizedIds.length < match.matchedBulletIds.length) {
-      debugLog(`Pass 2 match ${index + 1} removed extraneous citations`, {
+    if (replacementIds.length > 0) {
+      debugLog(`Pass 2 match ${index + 1} replaced unrelated citations`, {
         from: match.matchedBulletIds,
-        to: normalizedIds,
+        to: replacementIds,
       });
-      match.matchedBulletIds = normalizedIds;
+      match.matchedBulletIds = replacementIds;
+      return;
     }
+
+    debugLog(`Pass 2 match ${index + 1} normalized to gap`, {
+      reason: "no cited or available substantive evidence supports the requirement",
+    });
+    match.status = "gap";
+    match.matchedBulletIds = [];
+    match.severity = "medium";
   });
 }
 
@@ -2564,15 +2777,16 @@ function normalizePass2OverlookedGapEvidence(
   result.matches.forEach((match, index) => {
     if (
       match.status !== "gap" ||
-      /\bcollaborat\w*|\bcross[- ]functional\b/i.test(requirements[index]) ||
+      classifyRequirementSourceType(requirements[index]) === "work-constraint" ||
       /^\s*partner\s+with\b/i.test(requirements[index])
     ) {
       return;
     }
 
-    const supportingEntry = [...resumeEvidenceById.entries()]
+    const supportingEntries = [...resumeEvidenceById.entries()]
       .filter(([, evidenceText]) => {
-        return !isPass2EmploymentContextEvidence(evidenceText);
+        return !isPass2EmploymentContextEvidence(evidenceText) &&
+          !isPass2HeadingOnlyEvidence(evidenceText);
       })
       .map(([evidenceId, evidenceText]) => {
         return {
@@ -2584,12 +2798,22 @@ function normalizePass2OverlookedGapEvidence(
         };
       })
       .filter((candidate) => candidate.score > 0)
-      .sort((first, second) => second.score - first.score)[0];
+      .sort((first, second) => second.score - first.score)
+      .slice(0, 3);
 
-    if (supportingEntry) {
-      match.status = "partial";
-      match.matchedBulletIds = [supportingEntry.evidenceId];
-      match.severity = "medium";
+    if (supportingEntries.length > 0) {
+      const evidenceIds = supportingEntries.map((entry) => entry.evidenceId);
+      const evidenceTexts = evidenceIds.map((evidenceId) => {
+        return /** @type {string} */ (resumeEvidenceById.get(evidenceId));
+      });
+      const isCovered = pass2EvidenceDirectlyCoversRequirement(
+        requirements[index],
+        evidenceTexts
+      );
+
+      match.status = isCovered ? "covered" : "partial";
+      match.matchedBulletIds = evidenceIds;
+      match.severity = isCovered ? null : "medium";
     }
   });
 }
@@ -2884,6 +3108,9 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
               return /** @type {string} */ (resumeEvidenceById.get(evidenceId.trim()));
             }),
             severity: match.severity,
+            sourceType: classifyRequirementSourceType(
+              normalizedRequirements[index]
+            ),
           };
         }),
         summary: reviewedResult.summary.trim(),
@@ -2963,7 +3190,7 @@ async function auditConsolidatedPass2Matches(
     matches: matches.map((match) => {
       return {
         requirement: match.requirement,
-        status: match.status,
+        status: /** @type {ModelMatchStatus} */ (match.status),
         matchedBulletIds: match.matchedBullets
           .map((bullet) => firstEvidenceIdByText.get(bullet) || "")
           .filter(Boolean),
@@ -3160,8 +3387,122 @@ async function auditConsolidatedPass2Matches(
         );
       }),
       severity: match.severity,
+      sourceType: classifyRequirementSourceType(requirements[index]),
     };
   });
+}
+
+/**
+ * Resume silence cannot establish availability, authorization, location,
+ * schedule, or travel fit. Preserve these requirements as unknown and remove
+ * model-selected evidence so they remain outside the qualification score.
+ *
+ * @param {MatchResult[]} matches
+ * @returns {MatchResult[]}
+ */
+function normalizeWorkConstraintMatches(matches) {
+  return matches.map((match) => {
+    const sourceType = classifyRequirementSourceType(match.requirement);
+
+    if (sourceType !== "work-constraint") {
+      return {
+        ...match,
+        sourceType,
+      };
+    }
+
+    return {
+      ...match,
+      status: /** @type {MatchStatus} */ ("unknown"),
+      matchedBullets: [],
+      severity: null,
+      sourceType,
+    };
+  });
+}
+
+/**
+ * Exercise the code-owned Pass 2 repair pipeline without a model call. This is
+ * intentionally exposed only through testHooks so benchmark regressions can
+ * pin citation cleanup and constraint handling deterministically.
+ *
+ * @param {string[]} requirements
+ * @param {string[]} resumeBullets
+ * @param {{ requirement: string, status: ModelMatchStatus, matchedBullets: string[], severity: MatchSeverity | null }[]} matches
+ * @returns {MatchResult[]}
+ */
+function normalizePass2EvidenceForTesting(
+  requirements,
+  resumeBullets,
+  matches
+) {
+  const resumeEvidenceById = new Map(
+    resumeBullets.map((bullet, index) => [`B${index + 1}`, bullet])
+  );
+  const firstEvidenceIdByText = new Map(
+    [...resumeEvidenceById.entries()].map(([evidenceId, text]) => {
+      return [text, evidenceId];
+    })
+  );
+  /** @type {Pass2ModelResult} */
+  const result = {
+    matches: matches.map((match, index) => {
+      return {
+        requirement: requirements[index],
+        status: match.status,
+        matchedBulletIds: match.matchedBullets
+          .map((bullet) => firstEvidenceIdByText.get(bullet) || "")
+          .filter(Boolean),
+        severity: match.severity,
+      };
+    }),
+    summary: "Deterministic Pass 2 test fixture.",
+  };
+  /** @type {Pass2ModelResult} */
+  const originalDraft = {
+    matches: result.matches.map((match) => {
+      return {
+        ...match,
+        matchedBulletIds: [...match.matchedBulletIds],
+      };
+    }),
+    summary: result.summary,
+  };
+
+  normalizePass2ContextOnlyCitations(
+    result,
+    originalDraft,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2DurationCitations(result, requirements, resumeEvidenceById);
+  normalizePass2ExtraneousCitations(result, requirements, resumeEvidenceById);
+  normalizePass2DeterministicCompleteness(
+    result,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2OverlookedGapEvidence(
+    result,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2UnsupportedPartials(result, requirements, resumeEvidenceById);
+  normalizePass2Severity(result);
+
+  return normalizeWorkConstraintMatches(
+    result.matches.map((match, index) => {
+      return {
+        requirement: requirements[index],
+        status: match.status,
+        matchedBullets: match.matchedBulletIds.map((evidenceId) => {
+          return /** @type {string} */ (resumeEvidenceById.get(evidenceId));
+        }),
+        severity: match.severity,
+        sourceType: classifyRequirementSourceType(requirements[index]),
+      };
+    })
+  );
 }
 
 /**
@@ -3191,15 +3532,18 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
     };
   }
 
+  const scoredRequirements = normalizedRequirements.filter((requirement) => {
+    return classifyRequirementSourceType(requirement) !== "work-constraint";
+  });
   /** @type {MatchResult[]} */
   const matches = [];
 
   for (
     let batchStart = 0;
-    batchStart < normalizedRequirements.length;
+    batchStart < scoredRequirements.length;
     batchStart += PASS_2_REQUIREMENT_BATCH_SIZE
   ) {
-    const batchRequirements = normalizedRequirements.slice(
+    const batchRequirements = scoredRequirements.slice(
       batchStart,
       batchStart + PASS_2_REQUIREMENT_BATCH_SIZE
     );
@@ -3211,22 +3555,46 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
     matches.push(...batchAnalysis.matches);
   }
 
-  const auditedMatches = await auditConsolidatedPass2Matches(
-    normalizedRequirements,
-    normalizedResumeBullets,
-    matches
-  );
+  const scoredMatches = scoredRequirements.length > 0
+    ? await auditConsolidatedPass2Matches(
+      scoredRequirements,
+      normalizedResumeBullets,
+      matches
+    )
+    : [];
+  let scoredMatchIndex = 0;
+  const auditedMatches = normalizedRequirements.map((requirement) => {
+    if (classifyRequirementSourceType(requirement) === "work-constraint") {
+      return /** @type {MatchResult} */ ({
+        requirement,
+        status: "unknown",
+        matchedBullets: [],
+        severity: null,
+        sourceType: "work-constraint",
+      });
+    }
+
+    const match = scoredMatches[scoredMatchIndex];
+    scoredMatchIndex += 1;
+
+    return {
+      ...match,
+      sourceType: /** @type {RequirementSourceType} */ (
+        "resume-qualification"
+      ),
+    };
+  });
   const statusCounts = auditedMatches.reduce(
     (counts, match) => {
       counts[match.status] += 1;
       return counts;
     },
-    { covered: 0, partial: 0, gap: 0 }
+    { covered: 0, partial: 0, gap: 0, unknown: 0 }
   );
 
   return {
     matches: auditedMatches,
-    summary: `Resume evidence covers ${statusCounts.covered} requirements, partially supports ${statusCounts.partial}, and leaves ${statusCounts.gap} gaps.`,
+    summary: `Resume evidence covers ${statusCounts.covered} requirements, partially supports ${statusCounts.partial}, and leaves ${statusCounts.gap} gaps.${statusCounts.unknown > 0 ? ` ${statusCounts.unknown} work constraints are not scored because the resume does not establish them.` : ""}`,
   };
 }
 
@@ -3241,19 +3609,21 @@ async function analyzeRequirementsWithSavedResume(requirements) {
 }
 
 /**
- * @param {{ status: "covered" | "partial" | "gap" }[]} matches
+ * @param {{ status: "covered" | "partial" | "gap" | "unknown" }[]} matches
  * @returns {number}
  */
 function computeOverallScore(matches) {
-  if (matches.length === 0) {
+  const scoredMatches = matches.filter((match) => match.status !== "unknown");
+
+  if (scoredMatches.length === 0) {
     return 0;
   }
 
-  const total = matches.reduce((sum, match) => {
+  const total = scoredMatches.reduce((sum, match) => {
     return sum + MATCH_STATUS_SCORES[match.status];
   }, 0);
 
-  return Math.round((total / matches.length) * 100);
+  return Math.round((total / scoredMatches.length) * 100);
 }
 
 (/** @type {GapcheckWindow} */ (window)).GapcheckNano = Object.freeze({
@@ -3263,6 +3633,16 @@ function computeOverallScore(matches) {
   analyzeRequirementsWithResumeBullets,
   analyzeRequirementsWithSavedResume,
   computeOverallScore,
+  classifyRequirementSourceType,
+  testHooks: Object.freeze({
+    isPass2HeadingOnlyEvidence,
+    isPass2EmploymentContextEvidence,
+    pass2JobTitleSupportsDurationContext,
+    getPass2GapRecoveryEvidenceScore,
+    coveredPass2EvidenceIsComplete,
+    pass2EvidenceDirectlyCoversRequirement,
+    normalizePass2EvidenceForTesting,
+  }),
   enableDebug,
   disableDebug,
   isDebugEnabled,

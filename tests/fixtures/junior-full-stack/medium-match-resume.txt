@@ -1,0 +1,23 @@
+Jonas Vale
+Web Support Developer
+
+Experience
+
+Moss Harbor Arts Network — Web Support Developer
+June 2024 to present
+
+- Maintained responsive event pages with HTML, CSS, and JavaScript and converted two static pages into small React components.
+- Improved form labels, focus order, and color contrast after reviewing an accessibility checklist.
+- Updated content through a hosted CMS and used browser developer tools to diagnose layout and JavaScript errors.
+- Used personal Git branches and pull requests for site changes; a senior developer approved releases, but the role did not include peer review.
+- Wrote a few Jest unit tests for date-formatting helpers.
+- Documented recurring publishing problems and explained release status to program coordinators and a contract designer.
+
+Projects
+
+- Completed a course project that used an Express API with SQLite for a volunteer directory.
+- Deployed static portfolio sites through an automated hosting workflow.
+
+Skills
+
+HTML, CSS, JavaScript, introductory TypeScript, React basics, Git, Jest, SQLite

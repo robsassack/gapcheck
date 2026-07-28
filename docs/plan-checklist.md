@@ -166,22 +166,22 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Require full or nearly full evidence before marking a compound requirement covered
   - [x] Re-run the Web Developer benchmarks and confirm warehouse evidence no longer supports web-specific requirements
   - [x] Re-run Product Operations to confirm the refinement does not suppress legitimate transferable evidence
-- [ ] Add representative score-calibration benchmarks using synthetic content
-  - [ ] Add a fictional junior full-stack benchmark covering frontend, backend, cloud, DevOps, and optional technology experience
-  - [ ] Add a fictional software-consultancy benchmark covering collaborative development practices, testing, client work, and non-resume-verifiable constraints
-  - [ ] Use invented employers, candidates, responsibilities, qualifications, and resume evidence rather than copied or lightly anonymized real material
-  - [ ] Pin expected requirement themes, important classifications, and acceptable score ranges
-  - [ ] Run controlled and repeated comparisons to distinguish extraction variation from classification variation
+- [x] Add representative score-calibration benchmarks using synthetic content
+  - [x] Add a fictional junior full-stack benchmark covering frontend, backend, cloud, DevOps, and optional technology experience
+  - [x] Add a fictional software-consultancy benchmark covering collaborative development practices, testing, client work, and non-resume-verifiable constraints
+  - [x] Use invented employers, candidates, responsibilities, qualifications, and resume evidence rather than copied or lightly anonymized real material
+  - [x] Pin expected requirement themes, important classifications, and acceptable score ranges
+  - [x] Run controlled and repeated comparisons to distinguish extraction variation from classification variation
 - [ ] Classify extracted requirements by source type
   - [ ] Distinguish required qualifications, preferred qualifications, core responsibilities, and work or application constraints
   - [ ] Preserve explicit source qualifiers such as required, preferred, desirable, plus, and not required
   - [ ] Keep source-type metadata code-owned after extraction and available to scoring
   - [ ] Add schema validation and malformed-output handling for requirement metadata
 - [ ] Separate non-resume-verifiable constraints from qualification evidence
-  - [ ] Identify availability, location, work arrangement, travel, schedule, and interview or trial-period commitments
-  - [ ] Treat a resume's silence about those constraints as unknown rather than a gap
-  - [ ] Exclude unknown constraints from the resume qualification score
-  - [ ] Preserve extracted constraints for the Phase 8 preference-fit analysis
+  - [x] Identify availability, location, work arrangement, travel, schedule, and interview or trial-period commitments
+  - [x] Treat a resume's silence about those constraints as unknown rather than a gap
+  - [x] Exclude unknown constraints from the resume qualification score
+  - [x] Preserve extracted constraints for the Phase 8 preference-fit analysis
   - [ ] Test explicit matches, explicit conflicts, and missing resume information
 - [ ] Audit score sensitivity to requirement extraction and grouping
   - [ ] Compare scores when closely related requirements are split versus combined

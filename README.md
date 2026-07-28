@@ -35,8 +35,9 @@ After editing extension files, open `chrome://extensions` and click the reload i
 
 ## Development Benchmark Runner
 
-GapCheck includes a browser-based runner for the packaged Product Operations and
-Web Developer benchmarks. After loading or reloading the unpacked extension:
+GapCheck includes a browser-based runner for the packaged Product Operations,
+Web Developer, Junior Full-Stack, and Software Consultancy benchmarks. After
+loading or reloading the unpacked extension:
 
 1. Open `chrome://extensions` and copy the ID shown on the GapCheck extension card.
 2. Replace `<extension-id>` in the URL below with that ID:

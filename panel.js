@@ -25,12 +25,15 @@ const summaryText = /** @type {HTMLParagraphElement} */ (document.getElementById
 const coveredSection = /** @type {HTMLElement} */ (document.getElementById("coveredSection"));
 const partialSection = /** @type {HTMLElement} */ (document.getElementById("partialSection"));
 const gapSection = /** @type {HTMLElement} */ (document.getElementById("gapSection"));
+const unknownSection = /** @type {HTMLElement} */ (document.getElementById("unknownSection"));
 const coveredCount = /** @type {HTMLSpanElement} */ (document.getElementById("coveredCount"));
 const partialCount = /** @type {HTMLSpanElement} */ (document.getElementById("partialCount"));
 const gapCount = /** @type {HTMLSpanElement} */ (document.getElementById("gapCount"));
+const unknownCount = /** @type {HTMLSpanElement} */ (document.getElementById("unknownCount"));
 const coveredList = /** @type {HTMLDivElement} */ (document.getElementById("coveredList"));
 const partialList = /** @type {HTMLDivElement} */ (document.getElementById("partialList"));
 const gapList = /** @type {HTMLDivElement} */ (document.getElementById("gapList"));
+const unknownList = /** @type {HTMLDivElement} */ (document.getElementById("unknownList"));
 const capturedDetails = /** @type {HTMLDetailsElement} */ (document.getElementById("capturedDetails"));
 const capturedMeta = /** @type {HTMLSpanElement} */ (document.getElementById("capturedMeta"));
 const capturedPreview = /** @type {HTMLPreElement} */ (document.getElementById("capturedPreview"));
@@ -147,6 +150,7 @@ function clearMatchLists() {
   coveredList.replaceChildren();
   partialList.replaceChildren();
   gapList.replaceChildren();
+  unknownList.replaceChildren();
 }
 
 /**
@@ -167,6 +171,7 @@ function showEmptyState(title, message) {
   coveredSection.hidden = true;
   partialSection.hidden = true;
   gapSection.hidden = true;
+  unknownSection.hidden = true;
   clearMatchLists();
   hasRenderedAnalysis = false;
 }
@@ -200,7 +205,7 @@ function formatSeverity(severity) {
 /**
  * @param {HTMLElement} list
  * @param {{ requirement: string, matchedBullets: string[], severity: string | null }[]} matches
- * @param {"covered" | "partial" | "gap"} status
+ * @param {"covered" | "partial" | "gap" | "unknown"} status
  */
 function renderMatchList(list, matches, status) {
   list.replaceChildren();
@@ -211,7 +216,9 @@ function renderMatchList(list, matches, status) {
         ? "No requirements were marked fully covered."
         : status === "partial"
           ? "No partial matches were found."
-          : "No gaps were flagged.";
+          : status === "gap"
+            ? "No gaps were flagged."
+            : "No unscored work constraints were found.";
     renderEmptyMatchList(list, emptyCopy);
     return;
   }
@@ -225,14 +232,18 @@ function renderMatchList(list, matches, status) {
     requirement.textContent = match.requirement;
     item.append(requirement);
 
-    if (status !== "covered") {
+    if (status === "partial" || status === "gap") {
       const severity = document.createElement("span");
       severity.className = `severity-pill severity-${match.severity || "unknown"}`;
       severity.textContent = formatSeverity(match.severity) || "Severity not set";
       item.append(severity);
     }
 
-    if (status !== "gap" && match.matchedBullets.length > 0) {
+    if (
+      status !== "gap" &&
+      status !== "unknown" &&
+      match.matchedBullets.length > 0
+    ) {
       const bullets = document.createElement("ul");
       bullets.className = "matched-bullets";
 
@@ -250,12 +261,13 @@ function renderMatchList(list, matches, status) {
 }
 
 /**
- * @param {{ overallScore: number, matches: { requirement: string, status: "covered" | "partial" | "gap", matchedBullets: string[], severity: string | null }[], summary: string }} result
+ * @param {{ overallScore: number, matches: { requirement: string, status: "covered" | "partial" | "gap" | "unknown", matchedBullets: string[], severity: string | null }[], summary: string }} result
  */
 function renderAnalysisResult(result) {
   const coveredMatches = result.matches.filter((match) => match.status === "covered");
   const partialMatches = result.matches.filter((match) => match.status === "partial");
   const gapMatches = result.matches.filter((match) => match.status === "gap");
+  const unknownMatches = result.matches.filter((match) => match.status === "unknown");
 
   hideEmptyState();
   resultsBlock.hidden = false;
@@ -263,6 +275,7 @@ function renderAnalysisResult(result) {
   coveredSection.hidden = false;
   partialSection.hidden = false;
   gapSection.hidden = false;
+  unknownSection.hidden = unknownMatches.length === 0;
 
   scoreResult.dataset.scoreLevel = getScoreLevel(result.overallScore);
   scoreContext.textContent = getScoreContext(result.overallScore);
@@ -272,10 +285,12 @@ function renderAnalysisResult(result) {
   coveredCount.textContent = String(coveredMatches.length);
   partialCount.textContent = String(partialMatches.length);
   gapCount.textContent = String(gapMatches.length);
+  unknownCount.textContent = String(unknownMatches.length);
 
   renderMatchList(coveredList, coveredMatches, "covered");
   renderMatchList(partialList, partialMatches, "partial");
   renderMatchList(gapList, gapMatches, "gap");
+  renderMatchList(unknownList, unknownMatches, "unknown");
   hasRenderedAnalysis = true;
 }
 

@@ -1,0 +1,18 @@
+Owen Lark
+Application Developer
+
+Experience
+
+Juniper Signal Works — Application Developer
+August 2023 to present
+
+- Built internal TypeScript and React workflow features and maintained a small Node.js service used by the finance team.
+- Used Git pull requests, responded to senior-review feedback, and joined sprint planning with a product manager and designer.
+- Added Jest unit tests and a small set of API integration tests after implementation.
+- Met with internal accounting staff to clarify report behavior and demonstrated completed features at monthly reviews.
+- Documented release steps and used application logs to investigate support tickets.
+- Adjusted form behavior after usability feedback from internal staff.
+
+Projects
+
+- Built a C# inventory API during a team-based continuing-education course.

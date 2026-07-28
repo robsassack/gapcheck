@@ -94,6 +94,100 @@ const BENCHMARK_FAMILIES = Object.freeze([
       { id: "mismatch", label: "Clear mismatch", file: "clear-mismatch-resume.txt", min: 0, max: 20 },
     ],
   },
+  {
+    id: "junior-full-stack",
+    label: "Junior Full-Stack",
+    pass1Themes: [
+      {
+        label: "frontend development with TypeScript, React, responsive design, and accessibility",
+        patterns: [
+          /TypeScript/i,
+          /React/i,
+          /responsive/i,
+          /accessib/i,
+        ],
+      },
+      {
+        label: "backend APIs with Node.js, Express, and PostgreSQL",
+        patterns: [
+          /Node\.?js/i,
+          /Express/i,
+          /PostgreSQL/i,
+          /\bAPI\b|REST/i,
+        ],
+      },
+      {
+        label: "automated unit and integration testing",
+        patterns: [/\bunit\b/i, /integration/i, /test/i],
+      },
+      {
+        label: "Git collaboration and code review",
+        patterns: [/\bGit\b/i, /code review|pull request/i],
+      },
+      {
+        label: "cloud deployment and operational troubleshooting",
+        patterns: [/\bAWS\b|cloud/i, /deploy/i, /monitor|log|troubleshoot/i],
+      },
+      {
+        label: "DevOps experience with CI/CD and containers",
+        patterns: [/\bCI\/CD\b|continuous integration/i, /Docker|container/i],
+      },
+      {
+        label: "optional GraphQL, Python, or Terraform experience",
+        patterns: [/\bGraphQL\b/i, /\bPython\b/i, /\bTerraform\b/i],
+      },
+    ],
+    pass1Exclusions: [],
+    cases: [
+      { id: "strong", label: "Strong", file: "strong-match-resume.txt", min: 80, max: 100 },
+      { id: "medium", label: "Medium", file: "medium-match-resume.txt", min: 40, max: 70 },
+      { id: "mismatch", label: "Clear mismatch", file: "clear-mismatch-resume.txt", min: 0, max: 20 },
+    ],
+  },
+  {
+    id: "software-consultancy",
+    label: "Software Consultancy",
+    pass1Themes: [
+      {
+        label: "collaborative delivery with pairing, code review, and source control",
+        patterns: [
+          /pair/i,
+          /code review|pull request/i,
+          /\bGit\b|source control/i,
+        ],
+      },
+      {
+        label: "automated testing and test-driven development",
+        patterns: [/\bTDD\b|test-driven/i, /\bunit\b/i, /integration/i],
+      },
+      {
+        label: "client discovery, communication, and technical tradeoffs",
+        patterns: [/\bclient/i, /discover/i, /trade-?off/i],
+      },
+      {
+        label: "iterative agile delivery across disciplines",
+        patterns: [/agile|iterative/i, /cross-functional|designer|product/i],
+      },
+      {
+        label: "production software delivery using a modern application stack",
+        patterns: [/\bproduction\b/i, /Java|C#|JavaScript|TypeScript/i],
+      },
+      {
+        label: "non-resume-verifiable work authorization, hybrid schedule, and travel constraints",
+        patterns: [
+          /authoriz|sponsor/i,
+          /hybrid|office/i,
+          /travel/i,
+        ],
+      },
+    ],
+    pass1Exclusions: [],
+    cases: [
+      { id: "strong", label: "Strong", file: "strong-match-resume.txt", min: 75, max: 100 },
+      { id: "medium", label: "Medium", file: "medium-match-resume.txt", min: 35, max: 70 },
+      { id: "mismatch", label: "Clear mismatch", file: "clear-mismatch-resume.txt", min: 0, max: 20 },
+    ],
+  },
 ]);
 
 const RUN_MODES = Object.freeze({
@@ -154,7 +248,7 @@ const RUN_MODES = Object.freeze({
  * @property {number} durationMs
  * @property {number | null} score
  * @property {string[]} requirements
- * @property {{ requirement: string, status: "covered" | "partial" | "gap", matchedBullets: string[], severity: "low" | "medium" | "high" | null }[]} matches
+ * @property {{ requirement: string, status: "covered" | "partial" | "gap" | "unknown", matchedBullets: string[], severity: "low" | "medium" | "high" | null, sourceType: "resume-qualification" | "work-constraint" }[]} matches
  * @property {string} summary
  * @property {string | null} error
  * @property {string[]} warnings

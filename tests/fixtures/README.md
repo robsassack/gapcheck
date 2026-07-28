@@ -13,6 +13,7 @@ Each family directory uses the same layout:
   strong-match-resume.txt
   medium-match-resume.txt
   clear-mismatch-resume.txt
+  pinned-requirements.json
   expected-behavior.md
 ```
 
@@ -101,6 +102,60 @@ treated as equivalent to professional front-end development.
 See `web-developer/expected-behavior.md` for directional score ranges,
 classification anchors, acceptable variation, and regression signals.
 
+## Junior Full-Stack benchmark
+
+Use `junior-full-stack/job.txt` as the shared job description for the Junior
+Full-Stack benchmark. The fictional role covers:
+
+- Responsive, accessible TypeScript and React frontend work
+- Node.js and Express REST APIs
+- PostgreSQL data modeling and queries
+- Unit and integration testing
+- Git pull requests, code review, and feedback
+- AWS deployment, production troubleshooting, and monitoring
+- Preferred CI/CD and Docker experience
+- Optional GraphQL, Python, and Terraform experience
+
+The strong resume has direct evidence across the core stack and nearly every
+preferred theme. The medium resume deliberately mixes practical frontend work,
+course-project backend work, shallow testing, and personal Git use while
+omitting PostgreSQL, AWS production support, and optional technologies. The
+clear mismatch contains only inventory, spreadsheet, coordination, training,
+and documentation evidence.
+
+See `junior-full-stack/expected-behavior.md` for pinned themes,
+classifications, ranges, acceptable variation, and regression signals.
+
+## Software Consultancy benchmark
+
+Use `software-consultancy/job.txt` as the shared job description for the
+Software Consultancy benchmark. The fictional role covers:
+
+- Pair programming, Git pull requests, and constructive code review
+- TDD plus unit, integration, and end-to-end automated testing
+- Client discovery and decomposition of ambiguous work
+- Clear explanation of tradeoffs, delivery risks, and progress
+- Cross-functional iterative delivery
+- Production support, documentation, maintainability, and client handoff
+- Collaborative production-software experience
+- Work authorization, hybrid attendance, travel, and schedule constraints that
+  are intentionally absent from every resume
+
+The silent constraints expose the current three-status model's inability to
+represent “unknown from resume.” Expected ranges account for that known
+limitation without treating resume silence as evidence that a candidate cannot
+meet a constraint.
+
+See `software-consultancy/expected-behavior.md` for pinned themes,
+classifications, ranges, acceptable variation, and regression signals.
+
+## Synthetic-content guarantee
+
+The Junior Full-Stack and Software Consultancy jobs, employers, locations,
+candidates, responsibilities, qualifications, and resume evidence were
+invented specifically for this repository. They are not copied, scraped,
+lightly anonymized, or adapted from real postings or resumes.
+
 ## Interpreting expectations
 
 The expected ranges are initial human-judgment targets, not observed results or
@@ -112,6 +167,10 @@ bullets that do not support the requirement.
 Nano can vary between runs, while the code-owned scoring function remains
 deterministic for a fixed set of matches. Record actual ranges during the
 repeated-run step before changing prompts or scoring.
+
+The first controlled and pinned results for the synthetic families, including
+the observed variation attribution, are recorded in
+`synthetic-calibration-baseline.md`.
 
 ## Running the benchmarks
 
@@ -148,6 +207,15 @@ The available modes are:
   `pinned-requirements.json` fixture and skip Pass 1 entirely, then reuse that
   requirement set across every resume and repetition. Use this to isolate
   classification and evidence-selection variation.
+
+For each new calibration family, run all three resume cases for three
+repetitions in **Controlled comparison** mode and copy the report. Then run the
+same selection for three repetitions in **Pass 2 audit with pinned
+requirements** mode. Variation within the pinned run is classification or
+evidence-selection variation. Additional variation in the controlled run can
+come from extraction wording, grouping, omissions, or the interaction between
+those extracted requirements and Pass 2. Use
+`calibration-comparison-template.md` to record both reports and the comparison.
 
 Pass 2 automatically rejects and retries responses where covered or partial
 matches cite no evidence, gap matches cite evidence, or a cited bullet does not
