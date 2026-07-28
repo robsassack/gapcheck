@@ -172,11 +172,11 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Use invented employers, candidates, responsibilities, qualifications, and resume evidence rather than copied or lightly anonymized real material
   - [x] Pin expected requirement themes, important classifications, and acceptable score ranges
   - [x] Run controlled and repeated comparisons to distinguish extraction variation from classification variation
-- [ ] Classify extracted requirements by source type
-  - [ ] Distinguish required qualifications, preferred qualifications, core responsibilities, and work or application constraints
-  - [ ] Preserve explicit source qualifiers such as required, preferred, desirable, plus, and not required
-  - [ ] Keep source-type metadata code-owned after extraction and available to scoring
-  - [ ] Add schema validation and malformed-output handling for requirement metadata
+- [x] Classify extracted requirements by source type
+  - [x] Distinguish required qualifications, preferred qualifications, core responsibilities, and work or application constraints
+  - [x] Preserve explicit source qualifiers such as required, preferred, desirable, plus, and not required
+  - [x] Keep source-type metadata code-owned after extraction and available to scoring
+  - [x] Add schema validation and malformed-output handling for requirement metadata
 - [ ] Separate non-resume-verifiable constraints from qualification evidence
   - [x] Identify availability, location, work arrangement, travel, schedule, and interview or trial-period commitments
   - [x] Treat a resume's silence about those constraints as unknown rather than a gap

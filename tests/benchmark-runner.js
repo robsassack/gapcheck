@@ -247,8 +247,8 @@ const RUN_MODES = Object.freeze({
  * @property {string | null} pass1Error
  * @property {number} durationMs
  * @property {number | null} score
- * @property {string[]} requirements
- * @property {{ requirement: string, status: "covered" | "partial" | "gap" | "unknown", matchedBullets: string[], severity: "low" | "medium" | "high" | null, sourceType: "resume-qualification" | "work-constraint" }[]} matches
+ * @property {(string | { text: string, sourceType: string, qualifier: string | null })[]} requirements
+ * @property {{ requirement: string, status: "covered" | "partial" | "gap" | "unknown", matchedBullets: string[], severity: "low" | "medium" | "high" | null, sourceType: string, qualifier: string | null }[]} matches
  * @property {string} summary
  * @property {string | null} error
  * @property {string[]} warnings
@@ -259,8 +259,8 @@ const RUN_MODES = Object.freeze({
  *   GapcheckNano?: {
  *     pass1MaxRequirements: number,
  *     ensureLanguageModelReady: (onDownloadProgress?: (percent: number) => void) => Promise<void>,
- *     extractRequirementsFromJobText: (jobText: string) => Promise<string[]>,
- *     analyzeRequirementsWithResumeBullets: (requirements: string[], resumeBullets: string[]) => Promise<{ matches: BenchmarkResult["matches"], summary: string }>,
+ *     extractRequirementsFromJobText: (jobText: string) => Promise<{ text: string, sourceType: string, qualifier: string | null }[]>,
+ *     analyzeRequirementsWithResumeBullets: (requirements: (string | { text: string, sourceType: string, qualifier: string | null })[], resumeBullets: string[]) => Promise<{ matches: BenchmarkResult["matches"], summary: string }>,
  *     computeOverallScore: (matches: BenchmarkResult["matches"]) => number
  *   }
  * }} */
@@ -435,14 +435,16 @@ function appendResultRow(result) {
  * extraction or hard-coding benchmark requirements into the extension.
  *
  * @param {BenchmarkFamily} family
- * @param {string[]} requirements
+ * @param {(string | { text: string })[]} requirements
  * @param {number} requirementLimit
  * @returns {string[]}
  */
 function findPass1Warnings(family, requirements, requirementLimit) {
   /** @type {string[]} */
   const warnings = [];
-  const requirementText = requirements.join("\n");
+  const requirementText = requirements.map((requirement) => {
+    return typeof requirement === "string" ? requirement : requirement.text;
+  }).join("\n");
 
   if (requirements.length >= requirementLimit) {
     warnings.push(
@@ -596,11 +598,13 @@ function buildMarkdownReport() {
     );
 
     if (result.matches.length === 0) {
-      result.requirements.forEach((requirement) => lines.push(`- ${requirement}`));
+      result.requirements.forEach((requirement) => {
+        lines.push(`- ${typeof requirement === "string" ? requirement : `${requirement.text} [${requirement.sourceType}; ${requirement.qualifier || "no explicit qualifier"}]`}`);
+      });
     } else {
       result.matches.forEach((match) => {
         lines.push(
-          `- **${match.status}** (${match.severity || "no severity"}) ${match.requirement}`,
+          `- **${match.status}** (${match.severity || "no severity"}; ${match.sourceType}; ${match.qualifier || "no explicit qualifier"}) ${match.requirement}`,
           `  - Evidence: ${match.matchedBullets.length > 0 ? match.matchedBullets.join(" | ") : "none"}`
         );
       });
@@ -700,12 +704,12 @@ async function runBenchmarks() {
    * @param {number} repetition
    * @param {string} jobText
    * @param {string} context
-   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }>}
+   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: { text: string, sourceType: string, qualifier: string | null }[], error: string | null, warnings: string[] }>}
    */
   async function executePass1(family, repetition, jobText, context) {
     const startedAt = new Date();
     const startedMs = Date.now();
-    /** @type {string[]} */
+    /** @type {{ text: string, sourceType: string, qualifier: string | null }[]} */
     let requirements = [];
     let error = null;
 
@@ -785,7 +789,7 @@ async function runBenchmarks() {
    * @param {BenchmarkFamily} family
    * @param {BenchmarkCase} benchmarkCase
    * @param {number} repetition
-   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }} pass1
+   * @param {{ startedAt: string, durationMs: number, requirements: (string | { text: string, sourceType: string, qualifier: string | null })[], error: string | null, warnings: string[] }} pass1
    */
   function recordPass1Failure(family, benchmarkCase, repetition, pass1) {
     recordResult({

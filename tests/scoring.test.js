@@ -51,31 +51,169 @@ const results = [
 const sourceTypeResults = [
   {
     name: "work authorization is a constraint",
-    expected: "work-constraint",
+    expected: "work-application-constraint",
     actual: window.GapcheckNano.classifyRequirementSourceType(
       "Already be authorized to work in the United States without sponsorship"
     ),
   },
   {
     name: "hybrid attendance is a constraint",
-    expected: "work-constraint",
+    expected: "work-application-constraint",
     actual: window.GapcheckNano.classifyRequirementSourceType(
       "Work from the Bellwether City office two days per week"
     ),
   },
   {
     name: "travel availability is a constraint",
-    expected: "work-constraint",
+    expected: "work-application-constraint",
     actual: window.GapcheckNano.classifyRequirementSourceType(
       "Be available for up to 20 percent client travel"
     ),
   },
   {
     name: "technical deployment remains scored",
-    expected: "resume-qualification",
+    expected: "required-qualification",
     actual: window.GapcheckNano.classifyRequirementSourceType(
       "Help deploy and support services in AWS using an existing delivery pipeline"
     ),
+  },
+].map((result) => {
+  return {
+    ...result,
+    passed: result.actual === result.expected,
+  };
+});
+
+const requirementMetadataResults = [
+  {
+    name: "required qualification metadata",
+    expected: "required-qualification|required",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Three years of TypeScript experience is required",
+        "eligibility",
+        "required"
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "preferred qualifier creates preferred qualification",
+    expected: "preferred-qualification|preferred",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "GraphQL experience is preferred",
+        "eligibility",
+        "preferred"
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "plus qualifier is preserved",
+    expected: "preferred-qualification|plus",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Kubernetes experience is a plus",
+        "eligibility",
+        "plus"
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "desirable qualifier is preserved",
+    expected: "preferred-qualification|desirable",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Experience with event streaming is desirable",
+        "eligibility",
+        "desirable"
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "not-required qualifier is preserved",
+    expected: "preferred-qualification|not-required",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Prior healthcare experience is not required",
+        "eligibility",
+        "not-required"
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "responsibility metadata",
+    expected: "core-responsibility|null",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Build and maintain customer-facing applications",
+        "responsibility",
+        null
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "constraint classification overrides qualification category",
+    expected: "work-application-constraint|required",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Travel up to 20 percent is required",
+        "eligibility",
+        "required"
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "portfolio submission is an application constraint",
+    expected: "work-application-constraint|null",
+    actual: (() => {
+      const result = window.GapcheckNano.testHooks.createExtractedRequirement(
+        "Submit a portfolio of recent design work",
+        "eligibility",
+        null
+      );
+      return `${result.sourceType}|${result.qualifier}`;
+    })(),
+  },
+  {
+    name: "malformed qualifier is rejected",
+    expected: true,
+    actual: (() => {
+      try {
+        window.GapcheckNano.testHooks.assertValidPass1ExtractionResult({
+          eligibilityRequirements: [
+            { requirement: "Know TypeScript", qualifier: "nice-to-have" },
+          ],
+          responsibilities: [],
+        });
+        return false;
+      } catch (error) {
+        return error instanceof Error &&
+          error.name === "GapcheckModelOutputError";
+      }
+    })(),
+  },
+  {
+    name: "missing metadata is rejected",
+    expected: true,
+    actual: (() => {
+      try {
+        window.GapcheckNano.testHooks.assertValidPass1ExtractionResult({
+          eligibilityRequirements: ["Know TypeScript"],
+          responsibilities: [],
+        });
+        return false;
+      } catch (error) {
+        return error instanceof Error &&
+          error.name === "GapcheckModelOutputError";
+      }
+    })(),
   },
 ].map((result) => {
   return {
@@ -259,7 +397,12 @@ const evidenceResults = [
   };
 });
 
-const allResults = [...results, ...sourceTypeResults, ...evidenceResults];
+const allResults = [
+  ...results,
+  ...sourceTypeResults,
+  ...requirementMetadataResults,
+  ...evidenceResults,
+];
 const failures = allResults.filter((result) => !result.passed);
 const reportLines = allResults.map((result) => {
   const mark = result.passed ? "PASS" : "FAIL";

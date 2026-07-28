@@ -218,7 +218,7 @@ function renderMatchList(list, matches, status) {
           ? "No partial matches were found."
           : status === "gap"
             ? "No gaps were flagged."
-            : "No unscored work constraints were found.";
+            : "No unscored work or application constraints were found.";
     renderEmptyMatchList(list, emptyCopy);
     return;
   }

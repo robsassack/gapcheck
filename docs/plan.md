@@ -46,13 +46,13 @@ responseConstraint → matches[] + summary
 
 - **Input:** raw captured job text, truncated to ≤ 6,000 chars as a safety valve
 - Fresh Nano session; system prompt instructs it to identify discrete requirement lines
-- `responseConstraint` with JSON schema → returns `{ requirements: string[] }`
+- `responseConstraint` with JSON schema → returns categorized requirement and explicit-qualifier metadata
 - Session destroyed after use
 - Feeds only the raw job text into a fresh Nano session — its one job is to identify and return a clean array of discrete requirement lines, not to analyze anything yet. Because the output is short (target: ~20 items at 10–15 words each), this pass stays well within the token budget even for a long job posting. The essential requirements almost always appear early, which is why the character truncation is a reasonable safety valve rather than a lossy compromise.
 
 ### Pass 2 — Analysis (purple)
 
-- **Input:** `requirements[]` from Pass 1 + `resumeBullets[]` from storage (both already condensed)
+- **Input:** structured `requirements[]` from Pass 1 + `resumeBullets[]` from storage (both already condensed); only requirement text is model-visible in Pass 2
 - Second fresh Nano session; system prompt instructs it to match requirements against bullets
 - `responseConstraint` with JSON schema → returns structured gap analysis
 - Session destroyed after use
@@ -105,6 +105,7 @@ Expressed as a percentage (e.g. `overallScore = Math.round(sum / matches.length 
 - The severity scale is pinned as `low | medium | high`, and applies to `partial` matches as well as `gap` matches — a partial match on a "must-have" requirement is more significant than a partial on a "nice-to-have."
 - Normalize severity deterministically in code before validating Pass 2 output: `covered` always becomes `null`; `partial` or `gap` with a missing or `null` severity becomes `medium`; and valid model-provided `low | medium | high` values remain unchanged. This normalization does not affect the current status-only score.
 - Pass 1's schema should set `maxItems: 20` on the `requirements[]` array to keep Pass 2's input bounded.
+- Pass 1 returns each requirement with a constrained explicit qualifier (`required`, `preferred`, `desirable`, `plus`, `not-required`, or `null`). Application code derives and freezes one of four source types: required qualification, preferred qualification, core responsibility, or work/application constraint. Pass 2 cannot rewrite this metadata; code reattaches it to each index-aligned match so it is available to later scoring experiments.
 - Before Pass 1, label detected source bullets and join their wrapped continuation lines. The extraction prompt treats each label as indivisible and returns at most one requirement from each source bullet, preserving compound `and` / `or` qualifications instead of splitting them into separate requirements.
 - Pass 2's schema caps `matches[]` at 20 to mirror Pass 1's requirement cap. The system prompt explicitly instructs the model to "return one `matches` item for each provided requirement, in the same order," since JSON Schema alone can constrain shape but not this kind of one-to-one correspondence.
 

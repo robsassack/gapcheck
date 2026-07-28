@@ -7,6 +7,20 @@ const PASS_2_CONSOLIDATED_AUDIT_MAX_REQUIREMENTS = 6;
 const GAPCHECK_DEBUG_STORAGE_KEY = "gapcheckDebug";
 const MATCH_STATUSES = Object.freeze(["covered", "partial", "gap"]);
 const MATCH_SEVERITIES = Object.freeze(["low", "medium", "high"]);
+const REQUIREMENT_SOURCE_TYPES = Object.freeze([
+  "required-qualification",
+  "preferred-qualification",
+  "core-responsibility",
+  "work-application-constraint",
+]);
+const REQUIREMENT_QUALIFIERS = Object.freeze([
+  "required",
+  "preferred",
+  "desirable",
+  "plus",
+  "not-required",
+  null,
+]);
 const MATCH_STATUS_SCORES = Object.freeze({
   covered: 1,
   partial: 0.5,
@@ -19,13 +33,16 @@ const WORK_CONSTRAINT_PATTERNS = Object.freeze([
   /\b(?:travel|travelling|traveling)\b/i,
   /\b(?:available|availability|core\s+(?:working\s+)?hours?|time\s+zones?|early[- ]morning|evening|overnight|weekends?|shift|workshop\s+schedule)\b/i,
   /\b(?:background\s+check|drug\s+screen|trial\s+period|take[- ]home|interview\s+availability)\b/i,
+  /\b(?:submit|provide|include)\b[^.;]{0,100}\b(?:portfolio|work\s+samples?|cover\s+letter|assessment)\b|\bapplication\s+deadline\b/i,
 ]);
 
 const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Extract the most important concrete job requirements from the provided job posting.",
-  "Return eligibilityRequirements and responsibilities as separate arrays.",
+  "Return eligibilityRequirements and responsibilities as separate arrays of objects with requirement and qualifier fields.",
   "In eligibilityRequirements, include every explicit candidate qualification or work constraint, whether it is required, preferred, helpful, valuable, or not strictly required.",
-  "Eligibility includes years and domains of experience, skills, named tools, credentials, seniority or judgment, location, working hours, schedule, and travel.",
+  "Eligibility includes years and domains of experience, skills, named tools, credentials, seniority or judgment, location, working hours, schedule, travel, and material application constraints such as portfolios, work samples, assessments, or interview commitments.",
+  'Set qualifier to "required", "preferred", "desirable", "plus", or "not-required" only when that qualifier is explicit in the source; otherwise use null.',
+  "Preserve the explicit qualifier wording in the requirement text as well as the normalized qualifier field.",
   "Preserve material qualifiers such as duration, software-team or product context, alternatives, and preferred status.",
   "Group closely related prose qualifications into one item while retaining every named skill, tool, and qualifier in that item.",
   "When related qualifications appear together in one source sentence or paragraph, keep their combined meaning instead of returning separately scored fragments.",
@@ -37,7 +54,7 @@ const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Treat every labeled source bullet as indivisible: do not split tools, audiences, browsers, deliverables, alternatives, or concepts joined by and/or into separate requirements.",
   "Exclude illustrative tasks, deliverables, and substeps introduced by phrases such as 'typical work includes', 'examples include', 'for example', or similar language.",
   "Never return both a broad requirement and an example, substep, or restatement of it.",
-  "Exclude generic personal traits, company context, benefits, marketing copy, and application instructions.",
+  "Exclude generic personal traits, company context, benefits, marketing copy, and generic application instructions that do not impose a candidate constraint.",
   `Return no more than ${PASS_1_MAX_REQUIREMENTS} total items across both arrays and prefer fewer well-grouped items over fragments or semantic duplicates.`,
   "Write each requirement as a concise standalone string.",
 ].join(" ");
@@ -48,14 +65,36 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
     eligibilityRequirements: {
       type: "array",
       items: {
-        type: "string",
+        type: "object",
+        properties: {
+          requirement: {
+            type: "string",
+          },
+          qualifier: {
+            type: ["string", "null"],
+            enum: REQUIREMENT_QUALIFIERS,
+          },
+        },
+        required: ["requirement", "qualifier"],
+        additionalProperties: false,
       },
       maxItems: PASS_1_MAX_REQUIREMENTS,
     },
     responsibilities: {
       type: "array",
       items: {
-        type: "string",
+        type: "object",
+        properties: {
+          requirement: {
+            type: "string",
+          },
+          qualifier: {
+            type: ["string", "null"],
+            enum: REQUIREMENT_QUALIFIERS,
+          },
+        },
+        required: ["requirement", "qualifier"],
+        additionalProperties: false,
       },
       maxItems: PASS_1_MAX_REQUIREMENTS,
     },
@@ -67,10 +106,12 @@ const PASS_1_REQUIREMENTS_SCHEMA = Object.freeze({
 const PASS_1_COMPLETENESS_SYSTEM_PROMPT = [
   "Independently audit a job-requirement extraction for completeness.",
   "Compare the entire source job posting with the existing eligibility requirements and responsibilities.",
-  "Return a complete corrected extraction with eligibilityRequirements and responsibilities arrays, retaining correct existing items and restoring material omissions.",
+  "Return a complete corrected extraction with eligibilityRequirements and responsibilities arrays of requirement and qualifier objects, retaining correct existing items and restoring material omissions.",
   "Perform a sentence-by-sentence check for required, preferred, helpful, valuable, optional, or not-strictly-required qualifications.",
   "Check experience duration and domain, named tools and credentials, seniority and judgment, location, schedule, working hours, travel, and other explicit eligibility conditions.",
   "Preserve related qualifications from the same source sentence or paragraph as one requirement, including named alternatives and material qualifiers.",
+  'Set qualifier to "required", "preferred", "desirable", "plus", or "not-required" only when explicit in the source; otherwise use null.',
+  "Preserve the explicit qualifier wording in the requirement text as well as the normalized qualifier field.",
   "Preserve explicit duration wording from the source instead of rewriting it into shorthand.",
   "Including one condition from a sentence or paragraph does not cover its other named tools, contexts, constraints, or capabilities; retain every material clause.",
   "In responsibilities, retain only distinct broad work capabilities that are not already represented by an eligibility item.",
@@ -118,8 +159,14 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
 
 /**
  * @typedef {object} Pass1ExtractionResult
- * @property {string[]} eligibilityRequirements
- * @property {string[]} responsibilities
+ * @property {Pass1ModelRequirement[]} eligibilityRequirements
+ * @property {Pass1ModelRequirement[]} responsibilities
+ */
+
+/**
+ * @typedef {object} Pass1ModelRequirement
+ * @property {string} requirement
+ * @property {RequirementQualifier} qualifier
  */
 
 /**
@@ -131,7 +178,18 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
  */
 
 /**
- * @typedef {"resume-qualification" | "work-constraint"} RequirementSourceType
+ * @typedef {"required-qualification" | "preferred-qualification" | "core-responsibility" | "work-application-constraint"} RequirementSourceType
+ */
+
+/**
+ * @typedef {"required" | "preferred" | "desirable" | "plus" | "not-required" | null} RequirementQualifier
+ */
+
+/**
+ * @typedef {object} ExtractedRequirement
+ * @property {string} text
+ * @property {RequirementSourceType} sourceType
+ * @property {RequirementQualifier} qualifier
  */
 
 /**
@@ -145,6 +203,7 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
  * @property {string[]} matchedBullets
  * @property {MatchSeverity | null} severity
  * @property {RequirementSourceType} sourceType
+ * @property {RequirementQualifier} qualifier
  */
 
 /**
@@ -208,7 +267,9 @@ function getLanguageModelGlobal() {
  *       getPass2GapRecoveryEvidenceScore: typeof getPass2GapRecoveryEvidenceScore,
  *       coveredPass2EvidenceIsComplete: typeof coveredPass2EvidenceIsComplete,
  *       pass2EvidenceDirectlyCoversRequirement: typeof pass2EvidenceDirectlyCoversRequirement,
- *       normalizePass2EvidenceForTesting: typeof normalizePass2EvidenceForTesting
+ *       normalizePass2EvidenceForTesting: typeof normalizePass2EvidenceForTesting,
+ *       assertValidPass1ExtractionResult: typeof assertValidPass1ExtractionResult,
+ *       createExtractedRequirement: typeof createExtractedRequirement
  *     },
  *     enableDebug: typeof enableDebug,
  *     disableDebug: typeof disableDebug,
@@ -256,8 +317,45 @@ function debugLog(label, data) {
  */
 function classifyRequirementSourceType(requirement) {
   return WORK_CONSTRAINT_PATTERNS.some((pattern) => pattern.test(requirement))
-    ? "work-constraint"
-    : "resume-qualification";
+    ? "work-application-constraint"
+    : "required-qualification";
+}
+
+/**
+ * Source type is derived and retained by application code. The model supplies
+ * the extracted text and an explicitly constrained qualifier, but cannot
+ * rewrite this metadata during resume comparison.
+ *
+ * @param {string} requirement
+ * @param {"eligibility" | "responsibility"} category
+ * @param {RequirementQualifier} qualifier
+ * @returns {ExtractedRequirement}
+ */
+function createExtractedRequirement(requirement, category, qualifier) {
+  const text = requirement.trim();
+  /** @type {RequirementSourceType} */
+  let sourceType;
+
+  if (classifyRequirementSourceType(text) === "work-application-constraint") {
+    sourceType = "work-application-constraint";
+  } else if (category === "responsibility") {
+    sourceType = "core-responsibility";
+  } else if (
+    qualifier === "preferred" ||
+    qualifier === "desirable" ||
+    qualifier === "plus" ||
+    qualifier === "not-required"
+  ) {
+    sourceType = "preferred-qualification";
+  } else {
+    sourceType = "required-qualification";
+  }
+
+  return Object.freeze({
+    text,
+    sourceType,
+    qualifier,
+  });
 }
 
 /**
@@ -477,12 +575,30 @@ function assertValidPass1ExtractionResult(value) {
       );
     }
 
-    const hasInvalidRequirement = requirements.some((requirement) => {
-      return typeof requirement !== "string" || requirement.trim().length === 0;
+    const hasInvalidRequirement = requirements.some((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return true;
+      }
+
+      const requirement = /** @type {{ requirement?: unknown, qualifier?: unknown }} */ (
+        item
+      );
+      const keys = Object.keys(item);
+
+      return keys.length !== 2 ||
+        !keys.includes("requirement") ||
+        !keys.includes("qualifier") ||
+        typeof requirement.requirement !== "string" ||
+        requirement.requirement.trim().length === 0 ||
+        !REQUIREMENT_QUALIFIERS.includes(
+          /** @type {RequirementQualifier} */ (requirement.qualifier)
+        );
     });
 
     if (hasInvalidRequirement) {
-      throw createModelOutputError(`Pass 1 returned an invalid ${label} item.`);
+      throw createModelOutputError(
+        `Pass 1 returned an invalid ${label} requirement metadata item.`
+      );
     }
   });
 }
@@ -982,8 +1098,98 @@ function deduplicateRequirements(requirements) {
 }
 
 /**
+ * Recover a normalized qualifier only from explicit wording. This also covers
+ * source sentences restored deterministically after the model extraction.
+ *
+ * @param {string} requirement
+ * @returns {RequirementQualifier}
+ */
+function inferExplicitRequirementQualifier(requirement) {
+  if (/\b(?:not|required\s+not)\s+(?:strictly\s+)?required\b|\bnot\s+required\b/i.test(requirement)) {
+    return "not-required";
+  }
+
+  if (/\bdesirable\b/i.test(requirement)) {
+    return "desirable";
+  }
+
+  if (/\b(?:a\s+)?plus\b/i.test(requirement)) {
+    return "plus";
+  }
+
+  if (/\bpreferred\b/i.test(requirement)) {
+    return "preferred";
+  }
+
+  if (/\brequired\b|\bmust\b|\bneed(?:ed)?\b/i.test(requirement)) {
+    return "required";
+  }
+
+  return null;
+}
+
+/**
+ * Attach immutable, code-derived source metadata to the final de-duplicated
+ * extraction. Model metadata is used only after strict schema validation.
+ *
+ * @param {string[]} requirements
+ * @param {Pass1ModelRequirement[]} eligibilityRequirements
+ * @param {Pass1ModelRequirement[]} responsibilities
+ * @returns {ExtractedRequirement[]}
+ */
+function attachPass1RequirementMetadata(
+  requirements,
+  eligibilityRequirements,
+  responsibilities
+) {
+  const records = [
+    ...eligibilityRequirements.map((item) => ({
+      ...item,
+      category: /** @type {"eligibility"} */ ("eligibility"),
+    })),
+    ...responsibilities.map((item) => ({
+      ...item,
+      category: /** @type {"responsibility"} */ ("responsibility"),
+    })),
+  ];
+
+  return requirements.map((requirement) => {
+    const exactRecord = records.find((record) => {
+      return record.requirement.trim().toLowerCase() ===
+        requirement.trim().toLowerCase();
+    });
+    const relatedRecords = exactRecord
+      ? [exactRecord]
+      : records.filter((record) => {
+          return requirementSubstantiallyMatchesPass1Source(
+            record.requirement,
+            requirement,
+            0.55
+          ) || requirementSubstantiallyMatchesPass1Source(
+            requirement,
+            record.requirement,
+            0.55
+          );
+        });
+    const explicitQualifier = inferExplicitRequirementQualifier(requirement);
+    const qualifier = explicitQualifier ||
+      relatedRecords.find((record) => record.qualifier !== null)?.qualifier ||
+      null;
+    const category = relatedRecords.some((record) => {
+      return record.category === "eligibility";
+    })
+      ? "eligibility"
+      : relatedRecords.length > 0
+        ? "responsibility"
+        : "eligibility";
+
+    return createExtractedRequirement(requirement, category, qualifier);
+  });
+}
+
+/**
  * @param {string} jobText
- * @returns {Promise<string[]>}
+ * @returns {Promise<ExtractedRequirement[]>}
  */
 async function extractRequirementsFromJobText(jobText) {
   return withModelOutputRetry(async (isRetry) => {
@@ -1016,22 +1222,27 @@ async function extractRequirementsFromJobText(jobText) {
       isRetry
     );
     const eligibilityRequirements = reviewedResult.eligibilityRequirements.map(
-      (requirement) => requirement.trim()
+      (item) => item.requirement.trim()
     );
-    const responsibilities = reviewedResult.responsibilities.map((requirement) =>
-      requirement.trim()
+    const responsibilities = reviewedResult.responsibilities.map((item) =>
+      item.requirement.trim()
     );
-    const requirements = consolidatePass1Requirements(
+    const requirementTexts = consolidatePass1Requirements(
       eligibilityRequirements,
       responsibilities,
       truncatedJobText
+    );
+    const requirements = attachPass1RequirementMetadata(
+      requirementTexts,
+      reviewedResult.eligibilityRequirements,
+      reviewedResult.responsibilities
     );
     debugLog("Pass 1 categorized requirements", {
       initialExtraction: categorizedResult,
       eligibilityRequirements,
       responsibilities,
     });
-    debugLog("Pass 1 requirements", requirements);
+    debugLog("Pass 1 requirements with source metadata", requirements);
 
     return requirements;
   }, "Pass 1");
@@ -2062,6 +2273,66 @@ function validatePromptStringArray(value, label, maxItems) {
 }
 
 /**
+ * Accept structured Pass 1 output while retaining plain-string compatibility
+ * for pinned benchmark fixtures and callers from earlier versions.
+ *
+ * @param {unknown} value
+ * @param {string} label
+ * @param {number} [maxItems]
+ * @returns {ExtractedRequirement[]}
+ */
+function validateExtractedRequirements(value, label, maxItems) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array.`);
+  }
+
+  if (typeof maxItems === "number" && value.length > maxItems) {
+    throw new Error(`${label} must contain at most ${maxItems} items.`);
+  }
+
+  return value.map((item, index) => {
+    if (typeof item === "string" && item.trim()) {
+      const qualifier = inferExplicitRequirementQualifier(item);
+      return createExtractedRequirement(item, "eligibility", qualifier);
+    }
+
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`${label} item ${index + 1} must be a requirement object.`);
+    }
+
+    const candidate = /** @type {{ text?: unknown, sourceType?: unknown, qualifier?: unknown }} */ (
+      item
+    );
+    const keys = Object.keys(item);
+    const validShape = keys.length === 3 &&
+      keys.includes("text") &&
+      keys.includes("sourceType") &&
+      keys.includes("qualifier");
+
+    if (
+      !validShape ||
+      typeof candidate.text !== "string" ||
+      candidate.text.trim().length === 0 ||
+      typeof candidate.sourceType !== "string" ||
+      !REQUIREMENT_SOURCE_TYPES.includes(
+        /** @type {RequirementSourceType} */ (candidate.sourceType)
+      ) ||
+      !REQUIREMENT_QUALIFIERS.includes(
+        /** @type {RequirementQualifier} */ (candidate.qualifier)
+      )
+    ) {
+      throw new Error(`${label} item ${index + 1} has invalid requirement metadata.`);
+    }
+
+    return Object.freeze({
+      text: candidate.text.trim(),
+      sourceType: /** @type {RequirementSourceType} */ (candidate.sourceType),
+      qualifier: /** @type {RequirementQualifier} */ (candidate.qualifier),
+    });
+  });
+}
+
+/**
  * @returns {Promise<string[]>}
  */
 async function getSavedResumeBullets() {
@@ -2549,7 +2820,7 @@ function normalizePass2ExtraneousCitations(
   result.matches.forEach((match, index) => {
     if (
       match.status === "gap" ||
-      classifyRequirementSourceType(requirements[index]) === "work-constraint"
+      classifyRequirementSourceType(requirements[index]) === "work-application-constraint"
     ) {
       return;
     }
@@ -2777,7 +3048,7 @@ function normalizePass2OverlookedGapEvidence(
   result.matches.forEach((match, index) => {
     if (
       match.status !== "gap" ||
-      classifyRequirementSourceType(requirements[index]) === "work-constraint" ||
+      classifyRequirementSourceType(requirements[index]) === "work-application-constraint" ||
       /^\s*partner\s+with\b/i.test(requirements[index])
     ) {
       return;
@@ -3111,6 +3382,9 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
             sourceType: classifyRequirementSourceType(
               normalizedRequirements[index]
             ),
+            qualifier: inferExplicitRequirementQualifier(
+              normalizedRequirements[index]
+            ),
           };
         }),
         summary: reviewedResult.summary.trim(),
@@ -3388,6 +3662,7 @@ async function auditConsolidatedPass2Matches(
       }),
       severity: match.severity,
       sourceType: classifyRequirementSourceType(requirements[index]),
+      qualifier: inferExplicitRequirementQualifier(requirements[index]),
     };
   });
 }
@@ -3402,9 +3677,10 @@ async function auditConsolidatedPass2Matches(
  */
 function normalizeWorkConstraintMatches(matches) {
   return matches.map((match) => {
-    const sourceType = classifyRequirementSourceType(match.requirement);
+    const sourceType = match.sourceType ||
+      classifyRequirementSourceType(match.requirement);
 
-    if (sourceType !== "work-constraint") {
+    if (sourceType !== "work-application-constraint") {
       return {
         ...match,
         sourceType,
@@ -3500,6 +3776,7 @@ function normalizePass2EvidenceForTesting(
         }),
         severity: match.severity,
         sourceType: classifyRequirementSourceType(requirements[index]),
+        qualifier: inferExplicitRequirementQualifier(requirements[index]),
       };
     })
   );
@@ -3510,15 +3787,18 @@ function normalizePass2EvidenceForTesting(
  * the on-device model's output budget. Evidence IDs remain stable across every
  * batch because each batch derives them from the same original resume array.
  *
- * @param {string[]} requirements
+ * @param {(string | ExtractedRequirement)[]} requirements
  * @param {string[]} resumeBullets
  * @returns {Promise<Pass2AnalysisResult>}
  */
 async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets) {
-  const normalizedRequirements = validatePromptStringArray(
+  const requirementMetadata = validateExtractedRequirements(
     requirements,
     "Requirements",
     PASS_1_MAX_REQUIREMENTS
+  );
+  const normalizedRequirements = requirementMetadata.map(
+    (requirement) => requirement.text
   );
   const normalizedResumeBullets = validatePromptStringArray(
     resumeBullets,
@@ -3532,9 +3812,12 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
     };
   }
 
-  const scoredRequirements = normalizedRequirements.filter((requirement) => {
-    return classifyRequirementSourceType(requirement) !== "work-constraint";
+  const scoredRequirementMetadata = requirementMetadata.filter((requirement) => {
+    return requirement.sourceType !== "work-application-constraint";
   });
+  const scoredRequirements = scoredRequirementMetadata.map(
+    (requirement) => requirement.text
+  );
   /** @type {MatchResult[]} */
   const matches = [];
 
@@ -3563,14 +3846,17 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
     )
     : [];
   let scoredMatchIndex = 0;
-  const auditedMatches = normalizedRequirements.map((requirement) => {
-    if (classifyRequirementSourceType(requirement) === "work-constraint") {
+  const auditedMatches = requirementMetadata.map((requirementMetadataItem) => {
+    if (
+      requirementMetadataItem.sourceType === "work-application-constraint"
+    ) {
       return /** @type {MatchResult} */ ({
-        requirement,
+        requirement: requirementMetadataItem.text,
         status: "unknown",
         matchedBullets: [],
         severity: null,
-        sourceType: "work-constraint",
+        sourceType: requirementMetadataItem.sourceType,
+        qualifier: requirementMetadataItem.qualifier,
       });
     }
 
@@ -3579,9 +3865,9 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
 
     return {
       ...match,
-      sourceType: /** @type {RequirementSourceType} */ (
-        "resume-qualification"
-      ),
+      requirement: requirementMetadataItem.text,
+      sourceType: requirementMetadataItem.sourceType,
+      qualifier: requirementMetadataItem.qualifier,
     };
   });
   const statusCounts = auditedMatches.reduce(
@@ -3594,12 +3880,12 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
 
   return {
     matches: auditedMatches,
-    summary: `Resume evidence covers ${statusCounts.covered} requirements, partially supports ${statusCounts.partial}, and leaves ${statusCounts.gap} gaps.${statusCounts.unknown > 0 ? ` ${statusCounts.unknown} work constraints are not scored because the resume does not establish them.` : ""}`,
+    summary: `Resume evidence covers ${statusCounts.covered} requirements, partially supports ${statusCounts.partial}, and leaves ${statusCounts.gap} gaps.${statusCounts.unknown > 0 ? ` ${statusCounts.unknown} work or application constraints are not scored because the resume does not establish them.` : ""}`,
   };
 }
 
 /**
- * @param {string[]} requirements
+ * @param {(string | ExtractedRequirement)[]} requirements
  * @returns {Promise<Pass2AnalysisResult>}
  */
 async function analyzeRequirementsWithSavedResume(requirements) {
@@ -3642,6 +3928,8 @@ function computeOverallScore(matches) {
     coveredPass2EvidenceIsComplete,
     pass2EvidenceDirectlyCoversRequirement,
     normalizePass2EvidenceForTesting,
+    assertValidPass1ExtractionResult,
+    createExtractedRequirement,
   }),
   enableDebug,
   disableDebug,
