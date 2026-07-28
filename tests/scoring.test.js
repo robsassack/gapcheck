@@ -281,6 +281,65 @@ const normalizedDurationFixture =
       },
     ]
   );
+const onsiteConstraint =
+  "Work from the Bellwether City office two days per week";
+const explicitConstraintMatchEvidence =
+  "Located in Bellwether City and available to work from the office two days per week.";
+const explicitConstraintConflictEvidence =
+  "Seeking remote-only roles and unavailable for recurring office attendance.";
+const explicitConstraintMatchFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [onsiteConstraint],
+    [explicitConstraintMatchEvidence],
+    [
+      {
+        requirement: onsiteConstraint,
+        status: "covered",
+        matchedBullets: [explicitConstraintMatchEvidence],
+        severity: null,
+      },
+    ]
+  );
+const explicitConstraintConflictFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [onsiteConstraint],
+    [explicitConstraintConflictEvidence],
+    [
+      {
+        requirement: onsiteConstraint,
+        status: "gap",
+        matchedBullets: [],
+        severity: "high",
+      },
+    ]
+  );
+const missingConstraintInformationFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [onsiteConstraint],
+    ["Built accessible React interfaces for a logistics dashboard."],
+    [
+      {
+        requirement: onsiteConstraint,
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+    ]
+  );
+
+/**
+ * @param {{ status: MatchStatus, matchedBullets: string[], sourceType: string }} match
+ * @returns {boolean}
+ */
+function constraintIsUnknownAndUnscored(match) {
+  return match.status === "unknown" &&
+    match.matchedBullets.length === 0 &&
+    match.sourceType === "work-application-constraint" &&
+    window.GapcheckNano.computeOverallScore([
+      { status: "covered" },
+      match,
+    ]) === 100;
+}
 
 const evidenceResults = [
   {
@@ -377,6 +436,27 @@ const evidenceResults = [
     actual:
       normalizedEvidenceFixture[2].status === "unknown" &&
       normalizedEvidenceFixture[2].matchedBullets.length === 0,
+  },
+  {
+    name: "explicit constraint match remains unknown and unscored",
+    expected: true,
+    actual: constraintIsUnknownAndUnscored(
+      explicitConstraintMatchFixture[0]
+    ),
+  },
+  {
+    name: "explicit constraint conflict remains unknown and unscored",
+    expected: true,
+    actual: constraintIsUnknownAndUnscored(
+      explicitConstraintConflictFixture[0]
+    ),
+  },
+  {
+    name: "missing constraint information remains unknown and unscored",
+    expected: true,
+    actual: constraintIsUnknownAndUnscored(
+      missingConstraintInformationFixture[0]
+    ),
   },
   {
     name: "duration combines role, dates, and substantive evidence",

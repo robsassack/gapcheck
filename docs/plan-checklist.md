@@ -177,12 +177,12 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Preserve explicit source qualifiers such as required, preferred, desirable, plus, and not required
   - [x] Keep source-type metadata code-owned after extraction and available to scoring
   - [x] Add schema validation and malformed-output handling for requirement metadata
-- [ ] Separate non-resume-verifiable constraints from qualification evidence
+- [x] Separate non-resume-verifiable constraints from qualification evidence
   - [x] Identify availability, location, work arrangement, travel, schedule, and interview or trial-period commitments
   - [x] Treat a resume's silence about those constraints as unknown rather than a gap
   - [x] Exclude unknown constraints from the resume qualification score
   - [x] Preserve extracted constraints for the Phase 8 preference-fit analysis
-  - [ ] Test explicit matches, explicit conflicts, and missing resume information
+  - [x] Test explicit resume matches, explicit conflicts, and missing information; confirm all remain unknown and unscored until Phase 8 preference-fit analysis
 - [ ] Audit score sensitivity to requirement extraction and grouping
   - [ ] Compare scores when closely related requirements are split versus combined
   - [ ] Confirm optional lists and compound requirements do not receive disproportionate influence
