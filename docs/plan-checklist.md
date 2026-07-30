@@ -145,6 +145,9 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
     - [x] Final refinement rerun was stable and in range: strong 100, medium 68, and clear mismatch 0 in every repetition
 - [x] Audit Pass 1 independently
   - [x] Label explicit source bullets and preserve wrapped compound bullets as single extraction candidates
+  - [x] Recover sentence-like list boundaries under common requirement headings when page capture strips bullet markers
+  - [x] Consolidate model fragments within each source item without merging unrelated lines from the same section
+  - [x] Keep separate source sentences distinct when over-limit prose fragments are consolidated
   - [x] Compare extracted requirements across repeated runs
   - [x] Check for missing must-haves, duplicated requirements, and unstable grouping
 - [x] Audit Pass 2 independently
@@ -155,6 +158,9 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Check explicit resume evidence is not classified as a gap
   - [x] Check transferable evidence is consistently distinguished from direct evidence
   - [x] Check cited resume bullets genuinely support each classification
+  - [x] Recover conservative partial credit when exact named skills or delivery practices are explicit but overlooked
+  - [x] Exclude contact-only text and generic AI-tool usage from specialized technical evidence
+  - [x] Promote a partial only when action-based evidence passes strict full-requirement coverage checks
 - [x] Refine the prompt only for systematic errors reproduced across the benchmark set
   - [x] Make Pass 2 select and validate evidence before assigning a status
   - [x] Require evidence to demonstrate the same core capability, work domain, or a clearly established equivalent
@@ -188,14 +194,15 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Confirm optional lists and compound requirements do not receive disproportionate influence
   - [x] Check that the 20-item cap and eligibility-first ordering do not materially distort representative scores
   - [x] Prefer stable theme-level influence over sensitivity to exact requirement count
-- [ ] Evaluate requirement-aware scoring
-  - [ ] Pin proposed source-type weights and a severity formula in the plan before changing code
-  - [ ] Ensure preferred qualifications influence the score less than required qualifications
-  - [ ] Ensure responsibilities do not overwhelm candidate qualifications
-  - [ ] Compare status-only, source-weighted, severity-weighted, and combined formulas against every benchmark
-  - [ ] Reject the change if severity variation makes scores less stable or less intuitive
-  - [ ] If adopted, implement the formula as a pure code-owned function
-  - [ ] Add deterministic browser-run tests for all statuses, source types, severities, and zero-weight or excluded constraints
+  - [x] Confirm the corrected representative rerun remained directionally stable (`42%` with 12 extracted items; `39%` with 14)
+- [x] Evaluate requirement-aware scoring
+  - [x] Pin proposed source-type weights and a severity formula in the plan before changing code
+  - [x] Ensure preferred qualifications influence the score less than required qualifications
+  - [x] Ensure responsibilities do not overwhelm candidate qualifications
+  - [x] Compare status-only, source-weighted, severity-weighted, and combined formulas against every benchmark
+  - [x] Reject the change if severity variation makes scores less stable or less intuitive (rejected at the earlier improvement gate; no stability rerun needed)
+  - [x] If adopted, implement the formula as a pure code-owned function (not adopted; retain the existing pure status-only function)
+  - [x] Add deterministic browser-run tests for all statuses, source types, severities, and zero-weight or excluded constraints
 - [ ] Re-run malformed-output, long-input, and manual browser tests
 - [ ] Document the resulting scoring behavior and known limitations
 

@@ -222,6 +222,107 @@ const requirementMetadataResults = [
   };
 });
 
+const implicitListJobText = [
+  "About The Role",
+  "",
+  "What You'll Do",
+  "",
+  "Build and maintain production services through architecture, containerization, CI/CD, monitoring, and incident repair.",
+  "Integrate governed content from documentation, identity, and service-desk systems.",
+  "",
+  "What We're Looking For",
+  "",
+  "Build, deploy, and maintain production applications using Git, CI/CD pipelines, and containerization.",
+  "Understand databases, APIs, authentication, hosting, deployment pipelines, and Python.",
+  "",
+  "Why You'll Love This Role",
+  "",
+  "Visible impact across the company.",
+].join("\n");
+const labeledImplicitListJob =
+  window.GapcheckNano.testHooks.labelExplicitJobBullets(implicitListJobText);
+const separatelyGroupedImplicitItems =
+  window.GapcheckNano.testHooks.mergeRelatedPass1RequirementsToLimit(
+    [
+      "Own service architecture and containerization",
+      "Maintain CI/CD monitoring and production repair",
+      "Integrate governed documentation and identity content",
+      "Connect service-desk systems",
+      "Build and maintain production applications",
+      "Use Git and CI/CD pipelines",
+      "Apply production application containerization",
+      "Understand databases APIs and authentication",
+      "Understand hosting deployment pipelines and Python",
+    ],
+    implicitListJobText
+  );
+const proseSentenceJobText = [
+  "About The Role",
+  "",
+  "You will build, deploy, and maintain production applications. You will translate stakeholder requirements into technical systems. You will design reliability controls for multi-model services.",
+].join("\n");
+const separatelyGroupedProseSentences =
+  window.GapcheckNano.testHooks.mergeRelatedPass1RequirementsToLimit(
+    [
+      "Build production applications",
+      "Deploy production applications",
+      "Maintain production applications",
+      "Ship production software",
+      "Support deployed applications",
+      "Maintain application releases",
+      "Build deployed software",
+      "Translate stakeholder requirements",
+      "Turn stakeholder needs into systems",
+      "Understand business requirements",
+      "Design technical systems",
+      "Scope stakeholder problems",
+      "Translate business needs",
+      "Build stakeholder solutions",
+      "Design reliability controls",
+      "Support multi-model services",
+      "Build service fallback controls",
+      "Maintain model reliability",
+      "Validate model service output",
+      "Monitor reliability controls",
+      "Design multi-model infrastructure",
+    ],
+    proseSentenceJobText
+  );
+const pass1GroupingResults = [
+  {
+    name: "implicit list lines receive source bullet boundaries",
+    expected: 4,
+    actual:
+      labeledImplicitListJob.match(
+        /\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\]/g
+      )?.length || 0,
+  },
+  {
+    name: "implicit source items consolidate fragments independently",
+    expected: 4,
+    actual: separatelyGroupedImplicitItems.length,
+  },
+  {
+    name: "separate implicit responsibilities are not merged together",
+    expected: false,
+    actual: separatelyGroupedImplicitItems.some((requirement) => {
+      return /containerization/i.test(requirement) &&
+        /governed documentation/i.test(requirement);
+    }),
+  },
+  {
+    name: "separate prose sentences are not merged into one mega-requirement",
+    expected: false,
+    actual: separatelyGroupedProseSentences.some((requirement) => {
+      return /production applications/i.test(requirement) &&
+        /stakeholder requirements/i.test(requirement);
+    }),
+  },
+].map((result) => ({
+  ...result,
+  passed: result.actual === result.expected,
+}));
+
 const postgresEvidence =
   "Added Node.js and Express endpoints for shipment exceptions and wrote PostgreSQL queries and migrations for the supporting data.";
 const testingEvidence =
@@ -326,6 +427,140 @@ const missingConstraintInformationFixture =
       },
     ]
   );
+const explicitEngineeringEvidenceFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Understanding of version control (Git/GitHub).",
+      "Experience with CI/CD pipelines.",
+      "Experience with containerization.",
+      "Knowledge of software deployment and maintenance.",
+      "Comfortable in Python for production services and able to apply sound systems judgment.",
+      "Experience with Terraform.",
+      "Design resilience controls for inference services, including fallback routing and circuit breakers.",
+    ],
+    [
+      "Technical Skills: Python, Podman, Git, Jenkins, MariaDB",
+      "Built Python release-check automation in Jenkins, publishing test reports and enforcing deployment gates.",
+      "Develop and maintain production applications, shipping features across multiple release cycles.",
+      "Uses consumer AI coding assistants daily.",
+    ],
+    [
+      {
+        requirement: "Understanding of version control (Git/GitHub).",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement: "Experience with CI/CD pipelines.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement: "Experience with containerization.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement: "Knowledge of software deployment and maintenance.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement:
+          "Comfortable in Python for production services and able to apply sound systems judgment.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement: "Experience with Terraform.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement:
+          "Design resilience controls for inference services, including fallback routing and circuit breakers.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+    ]
+  );
+const unsupportedSpecializedEvidenceFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Enforce regulated-record access controls across identity and data-classification systems.",
+      "Design resilience controls for inference services, including schema validation, fallback routing, and circuit breakers.",
+    ],
+    [
+      "Summary Software engineer experienced with production applications and daily use of AI-assisted development tools.",
+      "Uses consumer AI coding assistants daily.",
+    ],
+    [
+      {
+        requirement:
+          "Enforce regulated-record access controls across identity and data-classification systems.",
+        status: "partial",
+        matchedBullets: [
+          "Summary Software engineer experienced with production applications and daily use of AI-assisted development tools.",
+        ],
+        severity: "medium",
+      },
+      {
+        requirement:
+          "Design resilience controls for inference services, including schema validation, fallback routing, and circuit breakers.",
+        status: "partial",
+        matchedBullets: [
+          "Summary Software engineer experienced with production applications and daily use of AI-assisted development tools.",
+        ],
+        severity: "medium",
+      },
+    ]
+  );
+const directPartialPromotionFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Build, deploy, and maintain production applications.",
+      "Comfortable in Python.",
+      "Experience with containerization.",
+    ],
+    [
+      "Develop and maintain production applications, shipping production features across multiple release cycles.",
+      "Built Python release-check automation in deployment pipelines.",
+      "Technical Skills: Python, Podman, Git, Jenkins",
+    ],
+    [
+      {
+        requirement: "Build, deploy, and maintain production applications.",
+        status: "partial",
+        matchedBullets: [
+          "Develop and maintain production applications, shipping production features across multiple release cycles.",
+        ],
+        severity: "low",
+      },
+      {
+        requirement: "Comfortable in Python.",
+        status: "partial",
+        matchedBullets: [
+          "Built Python release-check automation in deployment pipelines.",
+        ],
+        severity: "medium",
+      },
+      {
+        requirement: "Experience with containerization.",
+        status: "partial",
+        matchedBullets: [
+          "Technical Skills: Python, Podman, Git, Jenkins",
+        ],
+        severity: "medium",
+      },
+    ]
+  );
 
 /**
  * @param {{ status: MatchStatus, matchedBullets: string[], sourceType: string }} match
@@ -354,6 +589,13 @@ const evidenceResults = [
     expected: true,
     actual: window.GapcheckNano.testHooks.isPass2EmploymentContextEvidence(
       "March 2024 to present"
+    ),
+  },
+  {
+    name: "contact details are context only",
+    expected: true,
+    actual: window.GapcheckNano.testHooks.isPass2HeadingOnlyEvidence(
+      "candidate@example.com – 555-010-2020 – github.com/candidate"
     ),
   },
   {
@@ -470,6 +712,76 @@ const evidenceResults = [
         "Built responsive React and TypeScript screens for a parcel-routing dashboard."
       ),
   },
+  {
+    name: "explicit Git evidence cannot remain a gap",
+    expected: true,
+    actual:
+      explicitEngineeringEvidenceFixture[0].status !== "gap" &&
+      explicitEngineeringEvidenceFixture[0].matchedBullets.length > 0,
+  },
+  {
+    name: "explicit CI/CD pipeline evidence cannot remain a gap",
+    expected: true,
+    actual:
+      explicitEngineeringEvidenceFixture[1].status !== "gap" &&
+      explicitEngineeringEvidenceFixture[1].matchedBullets.length > 0,
+  },
+  {
+    name: "explicit Docker evidence cannot remain a containerization gap",
+    expected: true,
+    actual:
+      explicitEngineeringEvidenceFixture[2].status !== "gap" &&
+      explicitEngineeringEvidenceFixture[2].matchedBullets.length > 0,
+  },
+  {
+    name: "explicit deployment evidence cannot remain a deployment gap",
+    expected: true,
+    actual:
+      explicitEngineeringEvidenceFixture[3].status !== "gap" &&
+      explicitEngineeringEvidenceFixture[3].matchedBullets.length > 0,
+  },
+  {
+    name: "explicit Python action evidence cannot remain a compound Python gap",
+    expected: true,
+    actual:
+      explicitEngineeringEvidenceFixture[4].status !== "gap" &&
+      explicitEngineeringEvidenceFixture[4].matchedBullets.length > 0,
+  },
+  {
+    name: "unmentioned named infrastructure tool remains a gap",
+    expected: "gap",
+    actual: explicitEngineeringEvidenceFixture[5].status,
+  },
+  {
+    name: "AI tool usage does not prove inference-service reliability engineering",
+    expected: "gap",
+    actual: explicitEngineeringEvidenceFixture[6].status,
+  },
+  {
+    name: "AI tool usage does not support regulated-record governance",
+    expected: "gap",
+    actual: unsupportedSpecializedEvidenceFixture[0].status,
+  },
+  {
+    name: "AI tool usage cannot keep an inference-service reliability partial",
+    expected: "gap",
+    actual: unsupportedSpecializedEvidenceFixture[1].status,
+  },
+  {
+    name: "compound production lifecycle evidence is not overpromoted",
+    expected: "partial",
+    actual: directPartialPromotionFixture[0].status,
+  },
+  {
+    name: "action-based Python evidence promotes a simple Python partial",
+    expected: "covered",
+    actual: directPartialPromotionFixture[1].status,
+  },
+  {
+    name: "skills-only Docker evidence remains partial",
+    expected: "partial",
+    actual: directPartialPromotionFixture[2].status,
+  },
 ].map((result) => {
   return {
     ...result,
@@ -481,6 +793,7 @@ const allResults = [
   ...results,
   ...sourceTypeResults,
   ...requirementMetadataResults,
+  ...pass1GroupingResults,
   ...evidenceResults,
 ];
 const failures = allResults.filter((result) => !result.passed);

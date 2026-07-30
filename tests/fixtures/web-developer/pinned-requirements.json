@@ -1,13 +1,57 @@
 [
-  "Build responsive web pages with HTML, CSS, and JavaScript",
-  "Update existing website content, layouts, forms, and navigation",
-  "Work from design mockups and written feature requests",
-  "Test pages in Chrome, Safari, Firefox, and common mobile screen sizes",
-  "Diagnose and fix front-end problems involving layout, forms, and browser behavior",
-  "Use Git for version control and collaboration with other developers",
-  "Explain progress, tradeoffs, and blockers clearly to technical and non-technical teammates",
-  "Experience with React or another component-based front-end framework",
-  "Familiarity with semantic HTML and basic accessibility practices",
-  "Basic understanding of website performance and SEO",
-  "Experience working with client websites or in a small agency environment"
+  {
+    "text": "Build responsive web pages with HTML, CSS, and JavaScript",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Update existing website content, layouts, forms, and navigation",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Work from design mockups and written feature requests",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Test pages in Chrome, Safari, Firefox, and common mobile screen sizes",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Diagnose and fix front-end problems involving layout, forms, and browser behavior",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Use Git for version control and collaboration with other developers",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Explain progress, tradeoffs, and blockers clearly to technical and non-technical teammates",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Experience with React or another component-based front-end framework",
+    "sourceType": "preferred-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Familiarity with semantic HTML and basic accessibility practices",
+    "sourceType": "preferred-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Basic understanding of website performance and SEO",
+    "sourceType": "preferred-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Experience working with client websites or in a small agency environment",
+    "sourceType": "preferred-qualification",
+    "qualifier": null
+  }
 ]

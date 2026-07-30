@@ -17,6 +17,10 @@ Each family directory uses the same layout:
   expected-behavior.md
 ```
 
+Pinned requirements retain `text`, code-owned `sourceType`, and explicit
+`qualifier` metadata. This lets pinned Pass 2 runs compare source-aware formulas
+without asking the model to recreate requirement classification.
+
 ## Product Operations benchmark
 
 Use `product-ops/job.txt` as the shared job description for the Product
@@ -206,7 +210,9 @@ The available modes are:
 - **Pass 2 audit with pinned requirements:** load the family’s fixed
   `pinned-requirements.json` fixture and skip Pass 1 entirely, then reuse that
   requirement set across every resume and repetition. Use this to isolate
-  classification and evidence-selection variation.
+  classification and evidence-selection variation. The runner reports the
+  current status-only, source-weighted, severity-weighted, and combined scores
+  from the same matches, so formula comparison adds no model calls.
 
 For each new calibration family, run all three resume cases for three
 repetitions in **Controlled comparison** mode and copy the report. Then run the
@@ -216,6 +222,11 @@ evidence-selection variation. Additional variation in the controlled run can
 come from extraction wording, grouping, omissions, or the interaction between
 those extracted requirements and Pass 2. Use
 `calibration-comparison-template.md` to record both reports and the comparison.
+For requirement-aware scoring evaluation, run all four families and all three
+resume cases in both modes. The report flags ordering reversals and cases where
+the severity-weighted or combined score has a wider repeated-run range than the
+current status-only score. Record both copied reports and the adoption decision
+in `requirement-aware-scoring-evaluation.md`.
 
 Pass 2 automatically rejects and retries responses where covered or partial
 matches cite no evidence, gap matches cite evidence, or a cited bullet does not

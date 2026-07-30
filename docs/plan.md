@@ -113,6 +113,64 @@ influence, but this audit does not add heuristic text-similarity grouping or
 change the v1 formula without a stable code-owned theme identifier. See
 `tests/fixtures/score-sensitivity-audit.md` for the cases and decision boundary.
 
+**Phase 6 requirement-aware scoring candidates (pin before comparison code):**
+
+Keep the existing status values as the coverage signal:
+
+```text
+covered = 1
+partial = 0.5
+gap = 0
+unknown = excluded
+```
+
+Compare these four formulas without changing the production score:
+
+1. **Status-only:** the current unweighted mean.
+2. **Source-weighted:** first average items within each present source-type
+   bucket, then combine those bucket scores using required qualification `1.0`,
+   core responsibility `0.75`, preferred qualification `0.5`, and work or
+   application constraint `0`.
+3. **Severity-weighted:** weighted mean using severity multipliers low `0.5`,
+   medium `1.0`, and high `1.5` for partial matches and gaps. Covered matches
+   use the neutral multiplier `1.0` because their normalized severity is
+   `null`; unknown constraints use `0`.
+4. **Combined:** calculate the severity-weighted mean within each source-type
+   bucket, then combine the bucket scores using the source-type weights.
+
+For the severity-weighted formula:
+
+```text
+score = round(100 × sum(status value × item weight) / sum(item weight))
+```
+
+Source-weighted formulas apply that same weighted-mean operation to the present
+bucket scores. A zero total weight returns `0`. These are comparison
+candidates, not adopted product behavior. Bucket normalization means a long
+responsibility list cannot gain more total influence merely by containing more
+items; the complete responsibility bucket has three-quarters of the influence
+of the complete required-qualification bucket, and the complete preferred
+bucket has half. Severity is an importance multiplier, not extra match credit:
+a gap remains worth zero, while a high-severity gap has more influence on the
+aggregate than a low-severity gap. Reject severity weighting if one-level
+severity changes increase repeated-run spread, reverse
+strong/medium/mismatch ordering, or produce less intuitive benchmark results.
+Prefer the simplest formula that improves the complete benchmark set; do not
+tune weights to one resume or role family.
+
+**Phase 6 decision (2026-07-30): retain status-only scoring.** A pinned Pass 2
+screen compared all four formulas across every benchmark family and resume
+case. Source weighting lowered Junior Full-Stack strong from `80` to `72` and
+Software Consultancy strong from `67` to `56`; combined weighting inherited
+those regressions. Severity weighting moved nonzero results by at most two
+points, rescued no result outside its directional range, and lowered two medium
+results. It therefore failed the improvement gate before repeated stability
+testing was warranted. Production continues to use
+`computeOverallScore(matches)`. The comparison formulas remain isolated in the
+benchmark tooling. See
+`tests/fixtures/requirement-aware-scoring-evaluation.md` for the complete score
+matrix and rationale.
+
 **Schema details to pin down before building:**
 - `matchedBullets` is a `string[]`, not a single nullable string — a requirement may be supported by two weaker bullets together, and an empty array is cleaner to handle than `null`.
 - Keep `matchedBullets` as the application-facing result, but use compact code-owned `matchedBulletIds` in the model-facing Pass 2 schema. Constrain those IDs to the supplied resume evidence and map them back to the original bullet strings after validation so the model never has to reproduce full evidence text exactly.
@@ -121,7 +179,7 @@ change the v1 formula without a stable code-owned theme identifier. See
 - Normalize severity deterministically in code before validating Pass 2 output: `covered` always becomes `null`; `partial` or `gap` with a missing or `null` severity becomes `medium`; and valid model-provided `low | medium | high` values remain unchanged. This normalization does not affect the current status-only score.
 - Pass 1's schema should set `maxItems: 20` on the `requirements[]` array to keep Pass 2's input bounded.
 - Pass 1 returns each requirement with a constrained explicit qualifier (`required`, `preferred`, `desirable`, `plus`, `not-required`, or `null`). Application code derives and freezes one of four source types: required qualification, preferred qualification, core responsibility, or work/application constraint. Pass 2 cannot rewrite this metadata; code reattaches it to each index-aligned match so it is available to later scoring experiments.
-- Before Pass 1, label detected source bullets and join their wrapped continuation lines. The extraction prompt treats each label as indivisible and returns at most one requirement from each source bullet, preserving compound `and` / `or` qualifications instead of splitting them into separate requirements.
+- Before Pass 1, label detected source bullets and join their wrapped continuation lines. Also recover complete sentence-like list items under headings such as “What You’ll Do,” “What We’re Looking For,” “Responsibilities,” and “Qualifications” when captured page text has lost its visual bullet markers. The extraction prompt treats each label as indivisible and returns at most one requirement from each source item, preserving compound `and` / `or` qualifications instead of splitting them into separate requirements. If a model still returns fragments, code consolidates every fragment mapped to the same source item independently rather than merging unrelated lines from the surrounding section.
 - Pass 2's schema caps `matches[]` at 20 to mirror Pass 1's requirement cap. The system prompt explicitly instructs the model to "return one `matches` item for each provided requirement, in the same order," since JSON Schema alone can constrain shape but not this kind of one-to-one correspondence.
 
 The results UI derives its sections by filtering `matches[]`: `covered` = `status === "covered"`, `gaps` = `status === "gap"`, and `partial` gets its own third visual bucket rather than being folded into either of the other two.
@@ -180,6 +238,43 @@ Version 1.0 is implemented in the unpacked extension. Phases 0–5 of the develo
 - README includes a side panel screenshot from `assets/Screenshot_20260720_004538.png`
 
 The v1 score remains directional because Nano's extracted requirements and classifications can vary between runs. The deterministic scoring function produces the same score for the same `matches[]`; improving model consistency is the first post-v1 phase.
+
+A manual production regression found a `25%` result whose breakdown contained
+contradictory duplicates (an explicitly evidenced language was both covered and
+a gap), separately scored closely related engineering-tool fragments, and
+sixteen unrelated responsibilities collapsed into one partial item. The source posting had
+sentence-like list lines but no retained bullet characters. Pass 1 now recovers
+those implicit list boundaries and consolidates fragments only within their
+source item. Pass 2 also treats technical-skills lines as substantive evidence
+and conservatively restores partial credit when explicit source-control,
+delivery-pipeline, containerization, deployment, or named-language evidence was
+overlooked. Regression tests confirm that unmentioned specialized platforms and
+reliability engineering remain gaps.
+
+The first corrected rerun scored `42%` and removed the direct-evidence gaps, but
+still combined several independent “About the role” sentences into one partial
+and accepted generic AI-tool usage as evidence for specialized governance and
+service-reliability requirements. Over-limit prose consolidation now groups fragments by source
+sentence rather than by an entire paragraph. Contact-only lines and generic
+capitalized terms such as “AI” and “Software” cannot serve as named technical
+evidence. Unsupported specialized partials are normalized to gaps, while a
+partial is promoted to covered only when action-based evidence passes the same
+strict full-coverage check used to validate covered classifications. A simple
+named capability such as Python can be covered by direct action evidence;
+skills-only Docker evidence remains partial, and compound lifecycle evidence
+remains partial when a required stage is only implicit.
+
+The final representative rerun scored `39%`: one covered, nine partial, and
+four gaps across fourteen extracted requirements. This is directionally
+consistent with the preceding `42%` result: weighted match points increased
+from `5.0` to `5.5`, while the extracted-item denominator increased from twelve
+to fourteen. The final breakdown covered Python, avoided contradictory
+explicit-skill gaps, kept contact details out of evidence, and no longer merged
+independent prose sentences. Remaining partials reflect transferable overlap
+without claiming the posting's specialized platforms, domain-governance, or
+service-reliability experience as covered. The observed three-point
+movement is accepted as normal extraction/classification variation; further
+job-specific normalization would risk reducing generality.
 
 ## Post-v1 Roadmap
 

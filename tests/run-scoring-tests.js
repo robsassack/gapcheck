@@ -30,8 +30,10 @@ vm.createContext(context);
 try {
   for (const file of [
     "nano.js",
+    "tests/benchmark-scoring.js",
     "tests/scoring.test.js",
     "tests/score-sensitivity.test.js",
+    "tests/requirement-aware-scoring.test.js",
   ]) {
     const source = fs.readFileSync(file, "utf8");
     vm.runInContext(source, context, { filename: file });
@@ -58,6 +60,36 @@ const pinnedRequirementCounts = fs
 
     if (!Array.isArray(requirements)) {
       throw new Error(`${fixturePath} must contain an array.`);
+    }
+
+    const sourceTypes = new Set([
+      "required-qualification",
+      "preferred-qualification",
+      "core-responsibility",
+      "work-application-constraint",
+    ]);
+    const qualifiers = new Set([
+      "required",
+      "preferred",
+      "desirable",
+      "plus",
+      "not-required",
+      null,
+    ]);
+    const malformedRequirement = requirements.find((requirement) => {
+      return !requirement ||
+        typeof requirement !== "object" ||
+        Array.isArray(requirement) ||
+        typeof requirement.text !== "string" ||
+        requirement.text.trim().length === 0 ||
+        !sourceTypes.has(requirement.sourceType) ||
+        !qualifiers.has(requirement.qualifier);
+    });
+
+    if (malformedRequirement) {
+      throw new Error(
+        `${fixturePath} contains malformed pinned requirement metadata.`
+      );
     }
 
     return {

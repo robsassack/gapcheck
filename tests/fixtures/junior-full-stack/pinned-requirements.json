@@ -1,17 +1,77 @@
 [
-  "Build responsive and accessible user interfaces with HTML, CSS, TypeScript, and React",
-  "Develop and maintain REST APIs with Node.js and Express",
-  "Model and query application data in PostgreSQL",
-  "Write unit tests for application logic and integration tests for API and database behavior",
-  "Use Git branches and pull requests and participate in code review",
-  "Investigate defects with browser tools, application logs, and monitoring signals",
-  "Help deploy and support services in AWS using an existing delivery pipeline",
-  "Document technical work and communicate blockers to product and design partners",
-  "Have at least one year of professional software development, a substantial internship, or equivalent shipped project work",
-  "Build both user-facing and server-side features with JavaScript or TypeScript",
-  "Understand HTTP APIs and relational databases",
-  "Learn from feedback and collaborate with other developers",
-  "Preferred experience with CI/CD pipelines and Docker containers",
-  "Optional exposure to GraphQL, Python, or Terraform",
-  "Preferred familiarity with AWS services, application monitoring, or production support"
+  {
+    "text": "Build responsive and accessible user interfaces with HTML, CSS, TypeScript, and React",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Develop and maintain REST APIs with Node.js and Express",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Model and query application data in PostgreSQL",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Write unit tests for application logic and integration tests for API and database behavior",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Use Git branches and pull requests and participate in code review",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Investigate defects with browser tools, application logs, and monitoring signals",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Help deploy and support services in AWS using an existing delivery pipeline",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Document technical work and communicate blockers to product and design partners",
+    "sourceType": "core-responsibility",
+    "qualifier": null
+  },
+  {
+    "text": "Have at least one year of professional software development, a substantial internship, or equivalent shipped project work",
+    "sourceType": "required-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Build both user-facing and server-side features with JavaScript or TypeScript",
+    "sourceType": "required-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Understand HTTP APIs and relational databases",
+    "sourceType": "required-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Learn from feedback and collaborate with other developers",
+    "sourceType": "required-qualification",
+    "qualifier": null
+  },
+  {
+    "text": "Preferred experience with CI/CD pipelines and Docker containers",
+    "sourceType": "preferred-qualification",
+    "qualifier": "not-required"
+  },
+  {
+    "text": "Optional exposure to GraphQL, Python, or Terraform",
+    "sourceType": "preferred-qualification",
+    "qualifier": "not-required"
+  },
+  {
+    "text": "Preferred familiarity with AWS services, application monitoring, or production support",
+    "sourceType": "preferred-qualification",
+    "qualifier": "not-required"
+  }
 ]

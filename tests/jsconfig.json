@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "target": "ES2022"
+  },
+  "files": ["benchmark-scoring.js", "benchmark-runner.js"]
+}

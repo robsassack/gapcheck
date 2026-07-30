@@ -234,6 +234,10 @@ const RUN_MODES = Object.freeze({
  */
 
 /**
+ * @typedef {{ statusOnly: number, sourceWeighted: number, severityWeighted: number, combined: number }} RunnerScoreVariants
+ */
+
+/**
  * @typedef {object} BenchmarkResult
  * @property {string} familyId
  * @property {string} familyLabel
@@ -247,6 +251,7 @@ const RUN_MODES = Object.freeze({
  * @property {string | null} pass1Error
  * @property {number} durationMs
  * @property {number | null} score
+ * @property {RunnerScoreVariants | null} scoreVariants
  * @property {(string | { text: string, sourceType: string, qualifier: string | null })[]} requirements
  * @property {{ requirement: string, status: "covered" | "partial" | "gap" | "unknown", matchedBullets: string[], severity: "low" | "medium" | "high" | null, sourceType: string, qualifier: string | null }[]} matches
  * @property {string} summary
@@ -262,7 +267,17 @@ const RUN_MODES = Object.freeze({
  *     extractRequirementsFromJobText: (jobText: string) => Promise<{ text: string, sourceType: string, qualifier: string | null }[]>,
  *     analyzeRequirementsWithResumeBullets: (requirements: (string | { text: string, sourceType: string, qualifier: string | null })[], resumeBullets: string[]) => Promise<{ matches: BenchmarkResult["matches"], summary: string }>,
  *     computeOverallScore: (matches: BenchmarkResult["matches"]) => number
- *   }
+ *   },
+ *   GapcheckBenchmarkScoring?: {
+ *     configuration: {
+ *       statusValues: object,
+ *       sourceWeights: object,
+ *       severityWeights: object,
+ *       variantLabels: Record<keyof RunnerScoreVariants, string>,
+ *       sourceAggregation: string
+ *     },
+ *     computeScoreVariants: (matches: BenchmarkResult["matches"]) => RunnerScoreVariants
+ *   },
  * }} */
 const benchmarkWindow = window;
 
@@ -287,6 +302,8 @@ let elapsedTimer = 0;
 let results = [];
 /** @type {string[]} */
 let orderingWarnings = [];
+/** @type {string[]} */
+let stabilityWarnings = [];
 let lastRunCancelled = false;
 /** @type {RunModeId} */
 let lastRunMode = "controlled";
@@ -408,7 +425,9 @@ function appendResultRow(result) {
     result.familyLabel,
     String(result.repetition),
     result.caseLabel,
-    result.score === null ? "—" : `${result.score}%`,
+    result.scoreVariants === null
+      ? "—"
+      : `${result.scoreVariants.statusOnly} / ${result.scoreVariants.sourceWeighted} / ${result.scoreVariants.severityWeighted} / ${result.scoreVariants.combined}`,
     result.expectedRange ? `${result.expectedRange.min}-${result.expectedRange.max}%` : "—",
     `P1 ${formatDuration(result.pass1DurationMs)} / P2 ${formatDuration(result.durationMs)}`,
     resultError || (result.warnings.length > 0 ? result.warnings.join(" ") : "Recorded"),
@@ -473,6 +492,11 @@ function findPass1Warnings(family, requirements, requirementLimit) {
 function findOrderingWarnings() {
   /** @type {string[]} */
   const warnings = [];
+  const scoring = benchmarkWindow.GapcheckBenchmarkScoring;
+
+  if (!scoring) {
+    return ["Requirement-aware benchmark scoring helpers did not load."];
+  }
 
   BENCHMARK_FAMILIES.forEach((family) => {
     const familyResults = results.filter(
@@ -489,20 +513,98 @@ function findOrderingWarnings() {
       const strong = repetitionResults.find((result) => result.caseId === "strong");
       const medium = repetitionResults.find((result) => result.caseId === "medium");
       const mismatch = repetitionResults.find((result) => result.caseId === "mismatch");
+      /** @type {(keyof RunnerScoreVariants)[]} */
+      const variantIds = [
+        "statusOnly",
+        "sourceWeighted",
+        "severityWeighted",
+        "combined",
+      ];
 
-      if (strong && medium && strong.score !== null && medium.score !== null && strong.score <= medium.score) {
-        warnings.push(`${family.label} repetition ${repetition}: strong did not score above medium.`);
+      variantIds.forEach((variantId) => {
+        const label = scoring.configuration.variantLabels[variantId];
+        const strongScore = strong?.scoreVariants?.[variantId];
+        const mediumScore = medium?.scoreVariants?.[variantId];
+        const mismatchScore = mismatch?.scoreVariants?.[variantId];
+
+        if (
+          typeof strongScore === "number" &&
+          typeof mediumScore === "number" &&
+          strongScore <= mediumScore
+        ) {
+          warnings.push(
+            `${family.label} repetition ${repetition}, ${label}: strong did not score above medium.`
+          );
+        }
+
+        if (
+          typeof mediumScore === "number" &&
+          typeof mismatchScore === "number" &&
+          mediumScore <= mismatchScore
+        ) {
+          warnings.push(
+            `${family.label} repetition ${repetition}, ${label}: medium did not score above clear mismatch.`
+          );
+        }
+      });
+    });
+  });
+
+  return warnings;
+}
+
+/**
+ * Flag candidate formulas whose repeated-run range is wider than the current
+ * status-only range for the same family and resume case.
+ *
+ * @returns {string[]}
+ */
+function findSeverityStabilityWarnings() {
+  /** @type {string[]} */
+  const warnings = [];
+
+  BENCHMARK_FAMILIES.forEach((family) => {
+    family.cases.forEach((benchmarkCase) => {
+      const caseResults = results.filter((result) => {
+        return result.familyId === family.id &&
+          result.caseId === benchmarkCase.id &&
+          result.scoreVariants !== null &&
+          !result.pass1Error &&
+          !result.error;
+      });
+
+      if (caseResults.length < 2) {
+        return;
       }
 
-      if (
-        medium &&
-        mismatch &&
-        medium.score !== null &&
-        mismatch.score !== null &&
-        medium.score <= mismatch.score
-      ) {
-        warnings.push(`${family.label} repetition ${repetition}: medium did not score above clear mismatch.`);
+      /**
+       * @param {keyof RunnerScoreVariants} variantId
+       */
+      function getSpread(variantId) {
+        const values = caseResults.map((result) => {
+          return /** @type {RunnerScoreVariants} */ (
+            result.scoreVariants
+          )[variantId];
+        });
+        return Math.max(...values) - Math.min(...values);
       }
+
+      const statusSpread = getSpread("statusOnly");
+
+      [
+        ["severityWeighted", "Severity weighted"],
+        ["combined", "Combined"],
+      ].forEach(([variantId, label]) => {
+        const candidateSpread = getSpread(
+          /** @type {keyof RunnerScoreVariants} */ (variantId)
+        );
+
+        if (candidateSpread > statusSpread) {
+          warnings.push(
+            `${family.label} ${benchmarkCase.label}: ${label} spread ${candidateSpread} exceeded status-only spread ${statusSpread}.`
+          );
+        }
+      });
     });
   });
 
@@ -511,18 +613,19 @@ function findOrderingWarnings() {
 
 function renderReportWarnings() {
   orderingWarnings = findOrderingWarnings();
+  stabilityWarnings = findSeverityStabilityWarnings();
 
-  if (orderingWarnings.length === 0) {
+  if (orderingWarnings.length === 0 && stabilityWarnings.length === 0) {
     reportWarnings.hidden = true;
     reportWarnings.replaceChildren();
     return;
   }
 
   const heading = document.createElement("strong");
-  heading.textContent = "Ordering warnings";
+  heading.textContent = "Formula comparison warnings";
   const list = document.createElement("ul");
 
-  orderingWarnings.forEach((warning) => {
+  [...orderingWarnings, ...stabilityWarnings].forEach((warning) => {
     const item = document.createElement("li");
     item.textContent = warning;
     list.appendChild(item);
@@ -533,16 +636,19 @@ function renderReportWarnings() {
 }
 
 /**
- * @returns {{ version: number, createdAt: string, cancelled: boolean, mode: RunModeId, pass1Strategy: string, orderingWarnings: string[], runs: BenchmarkResult[] }}
+ * @returns {{ version: number, createdAt: string, cancelled: boolean, mode: RunModeId, pass1Strategy: string, scoringConfiguration: object | null, orderingWarnings: string[], stabilityWarnings: string[], runs: BenchmarkResult[] }}
  */
 function buildJsonReport() {
   return {
-    version: 3,
+    version: 4,
     createdAt: new Date().toISOString(),
     cancelled: lastRunCancelled,
     mode: lastRunMode,
     pass1Strategy: RUN_MODES[lastRunMode].pass1Strategy,
+    scoringConfiguration:
+      benchmarkWindow.GapcheckBenchmarkScoring?.configuration || null,
     orderingWarnings,
+    stabilityWarnings,
     runs: results,
   };
 }
@@ -557,11 +663,12 @@ function buildMarkdownReport() {
     `Generated: ${new Date().toISOString()}`,
     `Cancelled: ${lastRunCancelled ? "yes" : "no"}`,
     `Mode: ${RUN_MODES[lastRunMode].label}`,
+    "Scores: current status-only / source-weighted / severity-weighted / combined",
     "",
     "## Summary",
     "",
-    "| Family | Repetition | Resume | Score | Target | Duration | Result |",
-    "| --- | ---: | --- | ---: | ---: | ---: | --- |",
+    "| Family | Repetition | Resume | Status | Source | Severity | Combined | Target | Duration | Result |",
+    "| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
   ];
 
   results.forEach((result) => {
@@ -569,14 +676,20 @@ function buildMarkdownReport() {
       result.pass1Error ||
       result.error ||
       (result.warnings.length > 0 ? result.warnings.join(" ") : "Recorded");
+    const variantScores = result.scoreVariants;
     lines.push(
-      `| ${result.familyLabel} | ${result.repetition} | ${result.caseLabel} | ${result.score ?? "—"} | ${result.expectedRange ? `${result.expectedRange.min}-${result.expectedRange.max}` : "—"} | P1 ${formatDuration(result.pass1DurationMs)} / P2 ${formatDuration(result.durationMs)} | ${outcome} |`
+      `| ${result.familyLabel} | ${result.repetition} | ${result.caseLabel} | ${variantScores?.statusOnly ?? "—"} | ${variantScores?.sourceWeighted ?? "—"} | ${variantScores?.severityWeighted ?? "—"} | ${variantScores?.combined ?? "—"} | ${result.expectedRange ? `${result.expectedRange.min}-${result.expectedRange.max}` : "—"} | P1 ${formatDuration(result.pass1DurationMs)} / P2 ${formatDuration(result.durationMs)} | ${outcome} |`
     );
   });
 
   if (orderingWarnings.length > 0) {
     lines.push("", "## Ordering warnings", "");
     orderingWarnings.forEach((warning) => lines.push(`- ${warning}`));
+  }
+
+  if (stabilityWarnings.length > 0) {
+    lines.push("", "## Severity stability warnings", "");
+    stabilityWarnings.forEach((warning) => lines.push(`- ${warning}`));
   }
 
   lines.push("", "## Run details");
@@ -586,7 +699,10 @@ function buildMarkdownReport() {
       "",
       `### ${result.familyLabel} / ${result.caseLabel} / repetition ${result.repetition}`,
       "",
-      `- Score: ${result.score === null ? "not available" : `${result.score}%`}`,
+      `- Status-only score: ${result.scoreVariants === null ? "not available" : `${result.scoreVariants.statusOnly}%`}`,
+      `- Source-weighted score: ${result.scoreVariants === null ? "not available" : `${result.scoreVariants.sourceWeighted}%`}`,
+      `- Severity-weighted score: ${result.scoreVariants === null ? "not available" : `${result.scoreVariants.severityWeighted}%`}`,
+      `- Combined score: ${result.scoreVariants === null ? "not available" : `${result.scoreVariants.combined}%`}`,
       `- Pass 1 duration: ${formatDuration(result.pass1DurationMs)}`,
       `- Pass 2 duration: ${formatDuration(result.durationMs)}`,
       `- Pass 1 error: ${result.pass1Error || "none"}`,
@@ -650,13 +766,16 @@ async function runBenchmarks() {
 
   const nano = benchmarkWindow.GapcheckNano;
   const resumeParser = benchmarkWindow.GapcheckResume;
+  const benchmarkScoring = benchmarkWindow.GapcheckBenchmarkScoring;
 
-  if (!nano || !resumeParser) {
+  if (!nano || !resumeParser || !benchmarkScoring) {
     setStatus("The GapCheck analysis helpers did not load.", "error");
     return;
   }
 
   const analysisHelpers = nano;
+  const comparisonScoring =
+    /** @type {NonNullable<typeof benchmarkScoring>} */ (benchmarkScoring);
 
   isRunning = true;
   cancelRequested = false;
@@ -664,6 +783,7 @@ async function runBenchmarks() {
   lastRunMode = mode;
   results = [];
   orderingWarnings = [];
+  stabilityWarnings = [];
   resultsBody.innerHTML = '<tr class="empty-row"><td colspan="7">Waiting for the first result…</td></tr>';
   reportWarnings.hidden = true;
   reportWarnings.replaceChildren();
@@ -736,7 +856,7 @@ async function runBenchmarks() {
    * Pass 2 mode must not depend on a model session for Pass 1.
    *
    * @param {BenchmarkFamily} family
-   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }>}
+   * @returns {Promise<{ startedAt: string, durationMs: number, requirements: (string | { text: string, sourceType: string, qualifier: string | null })[], error: string | null, warnings: string[] }>}
    */
   async function loadPinnedPass1(family) {
     const startedAt = new Date().toISOString();
@@ -748,20 +868,54 @@ async function runBenchmarks() {
       );
       const parsedRequirements = /** @type {unknown} */ (JSON.parse(fixtureText));
 
-      if (
-        !Array.isArray(parsedRequirements) ||
-        parsedRequirements.length === 0 ||
-        parsedRequirements.length > analysisHelpers.pass1MaxRequirements ||
-        parsedRequirements.some((requirement) => {
-          return typeof requirement !== "string" || requirement.trim().length === 0;
-        })
-      ) {
-        throw new Error("Pinned requirement fixture must contain 1-20 non-empty strings.");
+      if (!Array.isArray(parsedRequirements)) {
+        throw new Error("Pinned requirement fixture must contain an array.");
       }
 
-      const requirements = /** @type {string[]} */ (parsedRequirements).map(
-        (requirement) => requirement.trim()
-      );
+      const requirements = parsedRequirements.map((requirement) => {
+        if (typeof requirement === "string" && requirement.trim().length > 0) {
+          return requirement.trim();
+        }
+
+        if (
+          requirement &&
+          typeof requirement === "object" &&
+          !Array.isArray(requirement)
+        ) {
+          const candidate = /** @type {{ text?: unknown, sourceType?: unknown, qualifier?: unknown }} */ (
+            requirement
+          );
+
+          if (
+            typeof candidate.text === "string" &&
+            candidate.text.trim().length > 0 &&
+            typeof candidate.sourceType === "string" &&
+            Object.prototype.hasOwnProperty.call(
+              comparisonScoring.configuration.sourceWeights,
+              candidate.sourceType
+            ) &&
+            (typeof candidate.qualifier === "string" ||
+              candidate.qualifier === null)
+          ) {
+            return {
+              text: candidate.text.trim(),
+              sourceType: candidate.sourceType,
+              qualifier: candidate.qualifier,
+            };
+          }
+        }
+
+        throw new Error(
+          "Pinned requirements must be non-empty strings or structured requirement metadata."
+        );
+      });
+
+      if (
+        requirements.length === 0 ||
+        requirements.length > analysisHelpers.pass1MaxRequirements
+      ) {
+        throw new Error("Pinned requirement fixture must contain 1-20 items.");
+      }
 
       return {
         startedAt,
@@ -805,6 +959,7 @@ async function runBenchmarks() {
       pass1Error: `Pass 1 failed: ${pass1.error || "Unknown error"}`,
       durationMs: 0,
       score: null,
+      scoreVariants: null,
       requirements: pass1.requirements,
       matches: [],
       summary: "",
@@ -817,7 +972,7 @@ async function runBenchmarks() {
    * @param {BenchmarkFamily} family
    * @param {BenchmarkCase} benchmarkCase
    * @param {number} repetition
-   * @param {{ startedAt: string, durationMs: number, requirements: string[], error: string | null, warnings: string[] }} pass1
+   * @param {{ startedAt: string, durationMs: number, requirements: (string | { text: string, sourceType: string, qualifier: string | null })[], error: string | null, warnings: string[] }} pass1
    * @param {string[]} resumeBullets
    */
   async function executePass2(family, benchmarkCase, repetition, pass1, resumeBullets) {
@@ -827,6 +982,8 @@ async function runBenchmarks() {
     let matches = [];
     let summary = "";
     let score = null;
+    /** @type {RunnerScoreVariants | null} */
+    let scoreVariants = null;
     let error = null;
     /** @type {string[]} */
     const warnings = [...pass1.warnings];
@@ -842,6 +999,13 @@ async function runBenchmarks() {
       matches = analysis.matches;
       summary = analysis.summary;
       score = analysisHelpers.computeOverallScore(matches);
+      scoreVariants = comparisonScoring.computeScoreVariants(matches);
+
+      if (scoreVariants.statusOnly !== score) {
+        throw new Error(
+          `Status-only comparison score ${scoreVariants.statusOnly} did not match production score ${score}.`
+        );
+      }
 
       if (score < benchmarkCase.min || score > benchmarkCase.max) {
         warnings.push(`Outside target range (${benchmarkCase.min}-${benchmarkCase.max}%).`);
@@ -863,6 +1027,7 @@ async function runBenchmarks() {
       pass1Error: null,
       durationMs: Date.now() - startedMs,
       score,
+      scoreVariants,
       requirements: pass1.requirements,
       matches,
       summary,
@@ -917,6 +1082,7 @@ async function runBenchmarks() {
             pass1Error: pass1.error ? `Pass 1 failed: ${pass1.error}` : null,
             durationMs: 0,
             score: null,
+            scoreVariants: null,
             requirements: pass1.requirements,
             matches: [],
             summary: "",

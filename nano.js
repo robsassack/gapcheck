@@ -156,6 +156,10 @@ const PASS_1_EXPLICIT_QUALIFICATION_PATTERN =
   /\b(?:candidates?|applicants?|you|they)\s+(?:must|should|need|will need|are expected|are required)|\b(?:experience|familiarity|knowledge|licen[cs]e|certification|credential)\b[^.!?]{0,240}\b(?:required|preferred|helpful|valuable|needed|not required)\b|\b(?:role|position)(?:\s+that)?\s+(?:requires|needs)\b|\b(?:remote-friendly|availability|working hours|time zones?|travel)\b|\bavailable\s+(?:for|to work)\b|\bat least\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+years?\b|\b\d+\+?\s+years?\b|\bcomfortable\b|\bstrong\b[^.!?]{0,160}\b(?:required|important|needed)\b/i;
 const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
   /^(?:the\s+)?(?:ideal|strongest)\s+candidates?\b|\brole\s+(?:helps|supports|turns|exists)\b|\battention to detail\b|\b(?:curious|pragmatic|passionate|self-starter|detail-oriented)\b/i;
+const PASS_1_LIST_SECTION_HEADING_PATTERN =
+  /^(?:what\s+(?:you(?:'|’)ll|you\s+will)\s+do|what\s+we(?:'|’)?re\s+looking\s+for|responsibilities|qualifications|requirements|preferred(?:,\s+not\s+required)?|nice\s+to\s+have)\s*:?\s*$/i;
+const PASS_1_OTHER_SECTION_HEADING_PATTERN =
+  /^(?:about(?:\s+the)?\s+(?:team|role|company)|why\s+you(?:'|’)?ll\s+love\s+this\s+role|benefits|compensation|equal\s+opportunity)\s*:?\s*$/i;
 
 /**
  * @typedef {object} Pass1ExtractionResult
@@ -269,7 +273,9 @@ function getLanguageModelGlobal() {
  *       pass2EvidenceDirectlyCoversRequirement: typeof pass2EvidenceDirectlyCoversRequirement,
  *       normalizePass2EvidenceForTesting: typeof normalizePass2EvidenceForTesting,
  *       assertValidPass1ExtractionResult: typeof assertValidPass1ExtractionResult,
- *       createExtractedRequirement: typeof createExtractedRequirement
+ *       createExtractedRequirement: typeof createExtractedRequirement,
+ *       labelExplicitJobBullets: typeof labelExplicitJobBullets,
+ *       mergeRelatedPass1RequirementsToLimit: typeof mergeRelatedPass1RequirementsToLimit
  *     },
  *     enableDebug: typeof enableDebug,
  *     disableDebug: typeof disableDebug,
@@ -500,9 +506,9 @@ function truncateJobTextForPass1(jobText) {
 }
 
 /**
- * Make explicit list-item boundaries visible to the model. Wrapped lines stay
- * attached to their source bullet so compound requirements can be preserved as
- * a single extraction candidate.
+ * Make list-item boundaries visible to the model. Wrapped explicit bullets
+ * remain attached, and complete sentence-like lines under common requirement
+ * headings recover boundaries that page capture sometimes strips away.
  *
  * @param {string} jobText
  * @returns {string}
@@ -512,6 +518,7 @@ function labelExplicitJobBullets(jobText) {
   const outputLines = [];
   let bulletIndex = 0;
   let activeBullet = "";
+  let isImplicitListSection = false;
 
   function flushActiveBullet() {
     if (!activeBullet) {
@@ -524,6 +531,22 @@ function labelExplicitJobBullets(jobText) {
   }
 
   jobText.split("\n").forEach((rawLine) => {
+    const trimmedLine = rawLine.trim();
+
+    if (PASS_1_LIST_SECTION_HEADING_PATTERN.test(trimmedLine)) {
+      flushActiveBullet();
+      isImplicitListSection = true;
+      outputLines.push(rawLine);
+      return;
+    }
+
+    if (PASS_1_OTHER_SECTION_HEADING_PATTERN.test(trimmedLine)) {
+      flushActiveBullet();
+      isImplicitListSection = false;
+      outputLines.push(rawLine);
+      return;
+    }
+
     const bulletMatch = rawLine.match(/^\s*(?:[-*•▪◦–—]|\d+[.)])\s+(.+)$/);
 
     if (bulletMatch) {
@@ -532,14 +555,25 @@ function labelExplicitJobBullets(jobText) {
       return;
     }
 
-    const trimmedLine = rawLine.trim();
-
     if (activeBullet && trimmedLine && /^\s+/.test(rawLine)) {
       activeBullet = `${activeBullet} ${trimmedLine}`;
       return;
     }
 
     flushActiveBullet();
+
+    if (
+      isImplicitListSection &&
+      trimmedLine.length >= 20 &&
+      /[.!?]\s*$/.test(trimmedLine)
+    ) {
+      bulletIndex += 1;
+      outputLines.push(
+        `[SOURCE BULLET J${bulletIndex} - KEEP AS ONE REQUIREMENT] ${trimmedLine}`
+      );
+      return;
+    }
+
     outputLines.push(rawLine);
   });
 
@@ -918,35 +952,65 @@ function replacePass1ParaphrasesWithSourceQualifications(
 }
 
 /**
- * When the audited extraction exceeds the final cap, merge fragments that map
- * back to the same prose paragraph. Requirements sourced from explicit list
- * bullets remain separate.
+ * Merge fragments that map back to the same explicit or recovered list item.
+ * If an over-limit extraction also contains prose fragments, merge only those
+ * mapping to the same prose paragraph. Separate source items never merge.
  *
  * @param {string[]} requirements
  * @param {string} jobText
  * @returns {string[]}
  */
 function mergeRelatedPass1RequirementsToLimit(requirements, jobText) {
-  if (requirements.length <= PASS_1_MAX_REQUIREMENTS) {
-    return requirements;
-  }
+  const sourceParagraphs = (() => {
+    /** @type {{ text: string, canMerge: boolean }[]} */
+    const scopes = [];
+    /** @type {string[]} */
+    let proseLines = [];
 
-  const sourceParagraphs = jobText
-    .split(/\n\s*\n/)
-    .map((rawText) => {
-      const explicitBulletCount = rawText.split("\n").filter((line) => {
-        return /^\s*(?:[-*•▪◦–—]|\d+[.)])\s+/.test(line);
-      }).length;
+    function flushProseLines() {
+      const text = proseLines.join(" ").replace(/\s+/g, " ").trim();
 
-      return {
-        text: rawText.replace(/\s+/g, " ").trim(),
-        canMerge: explicitBulletCount <= 1,
-      };
-    })
-    .filter((paragraph) => paragraph.text.length > 0);
+      if (text) {
+        const proseScopes = requirements.length > PASS_1_MAX_REQUIREMENTS
+          ? getPass1SourceScopes(text, "sentence")
+          : [text];
+
+        proseScopes.forEach((proseScope) => {
+          scopes.push({
+            text: proseScope,
+            canMerge: requirements.length > PASS_1_MAX_REQUIREMENTS,
+          });
+        });
+      }
+
+      proseLines = [];
+    }
+
+    labelExplicitJobBullets(jobText).split("\n").forEach((rawLine) => {
+      const sourceBullet = rawLine.match(
+        /^\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\]\s+(.+)$/
+      );
+
+      if (sourceBullet) {
+        flushProseLines();
+        scopes.push({ text: sourceBullet[1].trim(), canMerge: true });
+        return;
+      }
+
+      if (!rawLine.trim()) {
+        flushProseLines();
+        return;
+      }
+
+      proseLines.push(rawLine.trim());
+    });
+
+    flushProseLines();
+    return scopes;
+  })();
   let mergedRequirements = [...requirements];
 
-  while (mergedRequirements.length > PASS_1_MAX_REQUIREMENTS) {
+  while (true) {
     /** @type {Map<number, number[]>} */
     const requirementIndexesByParagraph = new Map();
 
@@ -1385,8 +1449,13 @@ const PASS_2_GAP_RECOVERY_CONCEPT_FAMILIES = Object.freeze([
   /\bcollaborat\w*|\bpair(?:ing|ed)?\b|\bteammates?\b|\bpeer\s+review\b|\breview\s+comments?\b|\bpull\s+requests?\b/i,
   /\bfeedback\b|\breview\s+comments?\b|\baddress\w*[^.!?]{0,80}\bcomments?\b|\bincorporat\w*[^.!?]{0,80}\bfeedback\b/i,
   /\bclients?\b|\bbusiness\s+stakeholders?\b|\bsubject[- ]matter\s+experts?\b|\binternal\s+(?:staff|teams?|partners?)\b/i,
+  /\bversion\s+control\b|\bgit(?:hub|lab)?\b|\bpull\s+requests?\b/i,
+  /\bCI\s*\/\s*CD\b|\bcontinuous\s+(?:integration|delivery|deployment)\b|\bAzure\s+(?:DevOps|Pipelines?)\b|\bGitHub\s+Actions\b|\bGitLab\s+CI\b|\bJenkins\b|\bdeployment\s+pipelines?\b/i,
+  /\bcontaineri[sz]\w*|\bcontainers?\b|\bDocker\b|\bPodman\b|\bKubernetes\b/i,
+  /\bdeploy\w*|\brelease\w*|\bship\w*|\bhost\w*/i,
 ]);
 const PASS_2_GENERIC_NAMED_WORD_EXCLUSIONS = new Set([
+  "AI",
   "Ability",
   "Available",
   "Basic",
@@ -1394,7 +1463,10 @@ const PASS_2_GENERIC_NAMED_WORD_EXCLUSIONS = new Set([
   "Experience",
   "Nice",
   "Responsibilities",
+  "Software",
   "Strong",
+  "Summary",
+  "Technical",
   "The",
   "Use",
   "Work",
@@ -1550,6 +1622,21 @@ function getPass2DateIntervals(text) {
  * @returns {boolean}
  */
 function isPass2HeadingOnlyEvidence(evidenceText) {
+  if (/^(?:technical\s+)?skills?\s*:/i.test(evidenceText.trim())) {
+    return false;
+  }
+
+  if (
+    /@|https?:\/\/|www\.|github\.com|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/i.test(
+      evidenceText
+    ) &&
+    !/\b(?:built|created|delivered|deployed|developed|diagnosed|implemented|maintained|resolved|shipped|supported|used|wrote)\b/i.test(
+      evidenceText
+    )
+  ) {
+    return true;
+  }
+
   const letters = evidenceText.replace(/[^A-Za-z]/g, "");
   const wordCount = (evidenceText.match(/[A-Za-z]+/g) || []).length;
   const uppercaseWordCount =
@@ -1778,9 +1865,15 @@ function getPass2GapRecoveryEvidenceScore(requirement, evidenceText) {
           return family.test(clause) && family.test(evidenceText);
         });
       const sharesNamedConcept = sharesPass2NamedConcept(clause, evidenceText);
+      const explicitlyRequestsNamedExperience =
+        /\b(?:experience|familiarity|knowledge|understanding)\s+(?:of|with)\b|\bcomfortable\b|\bworks?\s+primarily\s+in\b/i.test(
+          clause
+        );
       const score = sharedTokenCount >= 2
         ? sharedTokenCount
-        : sharesNamedConcept && requirementTokens.size <= 4
+        : sharesNamedConcept &&
+            (requirementTokens.size <= 4 ||
+              explicitlyRequestsNamedExperience)
           ? 2
           : sharesSpecializedConcept
             ? 3
@@ -3017,16 +3110,101 @@ function normalizePass2UnsupportedPartials(
       const evidenceText = resumeEvidenceById.get(evidenceId.trim());
 
       return typeof evidenceText === "string" &&
-        pass2EvidenceSupportsAnyRequirementClause(
+        (pass2EvidenceSupportsAnyRequirementClause(
           requirements[index],
           evidenceText
-        );
+        ) ||
+          getPass2GapRecoveryEvidenceScore(
+            requirements[index],
+            evidenceText
+          ) > 0);
     });
 
     if (!hasClauseSupport) {
       match.status = "gap";
       match.matchedBulletIds = [];
       match.severity = "medium";
+    }
+  });
+}
+
+/**
+ * Promote a model partial only when the complete resume contains action-based
+ * evidence that passes the same strict full-coverage checks used for covered
+ * classifications. This repairs conservative omissions without promoting
+ * skills-only claims or evidence for only part of a compound requirement.
+ *
+ * @param {Pass2ModelResult} result
+ * @param {string[]} requirements
+ * @param {Map<string, string>} resumeEvidenceById
+ */
+function normalizePass2DirectPartials(
+  result,
+  requirements,
+  resumeEvidenceById
+) {
+  result.matches.forEach((match, index) => {
+    if (match.status !== "partial") {
+      return;
+    }
+
+    const candidateIds = [...resumeEvidenceById.entries()]
+      .filter(([, evidenceText]) => {
+        return !isPass2EmploymentContextEvidence(evidenceText) &&
+          !isPass2HeadingOnlyEvidence(evidenceText) &&
+          getPass2GapRecoveryEvidenceScore(
+            requirements[index],
+            evidenceText
+          ) > 0;
+      })
+      .sort((first, second) => {
+        return getPass2GapRecoveryEvidenceScore(
+          requirements[index],
+          second[1]
+        ) - getPass2GapRecoveryEvidenceScore(
+          requirements[index],
+          first[1]
+        );
+      })
+      .slice(0, 4)
+      .map(([evidenceId]) => evidenceId);
+    const evidenceTexts = candidateIds.map((evidenceId) => {
+      return /** @type {string} */ (resumeEvidenceById.get(evidenceId));
+    });
+    const namedCapabilityMatch = requirements[index].match(
+      /^(?:comfortable\s+(?:with|in)|experience\s+with|familiarity\s+with|knowledge\s+of|understanding\s+of)\s+([A-Za-z][A-Za-z0-9.+#/-]*)[.\s]*$/i
+    );
+    const namedCapabilityTokens = namedCapabilityMatch
+      ? getPass2EvidenceTokens(namedCapabilityMatch[1])
+      : new Set();
+    const hasActionBasedNamedEvidence =
+      namedCapabilityTokens.size > 0 &&
+      evidenceTexts.some((evidenceText) => {
+        const evidenceTokens = getPass2EvidenceTokens(evidenceText);
+        const startsWithAction =
+          /^(?:built|created|delivered|deployed|developed|implemented|maintained|shipped|used|wrote)\b/i.test(
+            evidenceText.trim()
+          );
+
+        return startsWithAction &&
+          [...namedCapabilityTokens].every((capabilityToken) => {
+            return [...evidenceTokens].some((evidenceToken) => {
+              return pass2TokensAreRelated(capabilityToken, evidenceToken);
+            });
+          });
+      });
+
+    if (
+      candidateIds.length > 0 &&
+      (hasActionBasedNamedEvidence ||
+        pass2EvidenceDirectlyCoversRequirement(
+          requirements[index],
+          evidenceTexts
+        ))
+    ) {
+      match.status = "covered";
+      match.matchedBulletIds = candidateIds;
+      match.severity = null;
     }
   });
 }
@@ -3356,6 +3534,11 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
         normalizedRequirements,
         resumeEvidenceById
       );
+      normalizePass2DirectPartials(
+        reviewedResult,
+        normalizedRequirements,
+        resumeEvidenceById
+      );
       normalizePass2Severity(reviewedResult);
 
       assertValidPass2AnalysisResult(
@@ -3613,6 +3796,11 @@ async function auditConsolidatedPass2Matches(
         candidateRequirements,
         resumeEvidenceById
       );
+      normalizePass2DirectPartials(
+        reviewedResult,
+        candidateRequirements,
+        resumeEvidenceById
+      );
       normalizePass2Severity(reviewedResult);
       assertValidPass2AnalysisResult(
         reviewedResult,
@@ -3645,6 +3833,11 @@ async function auditConsolidatedPass2Matches(
     resumeEvidenceById
   );
   normalizePass2UnsupportedPartials(
+    consolidatedDraft,
+    requirements,
+    resumeEvidenceById
+  );
+  normalizePass2DirectPartials(
     consolidatedDraft,
     requirements,
     resumeEvidenceById
@@ -3764,6 +3957,7 @@ function normalizePass2EvidenceForTesting(
     resumeEvidenceById
   );
   normalizePass2UnsupportedPartials(result, requirements, resumeEvidenceById);
+  normalizePass2DirectPartials(result, requirements, resumeEvidenceById);
   normalizePass2Severity(result);
 
   return normalizeWorkConstraintMatches(
@@ -3930,6 +4124,8 @@ function computeOverallScore(matches) {
     normalizePass2EvidenceForTesting,
     assertValidPass1ExtractionResult,
     createExtractedRequirement,
+    labelExplicitJobBullets,
+    mergeRelatedPass1RequirementsToLimit,
   }),
   enableDebug,
   disableDebug,

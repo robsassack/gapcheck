@@ -85,6 +85,10 @@
           <button id="copyMarkdownBtn" type="button" disabled>Copy Markdown</button>
         </div>
       </div>
+      <p class="hint">
+        Candidate order: current status-only / source-weighted / severity-weighted / combined.
+        Production scoring is unchanged.
+      </p>
       <div id="reportWarnings" class="report-warnings" hidden></div>
       <div class="table-wrap">
         <table>
@@ -93,7 +97,7 @@
               <th>Family</th>
               <th>Rep</th>
               <th>Resume</th>
-              <th>Score</th>
+              <th>Scores: status / source / severity / combined</th>
               <th>Target</th>
               <th>Time</th>
               <th>Result</th>
@@ -109,6 +113,7 @@
 
   <script src="../resume-parser.js"></script>
   <script src="../nano.js"></script>
+  <script src="benchmark-scoring.js"></script>
   <script src="benchmark-runner.js"></script>
 </body>
 </html>
