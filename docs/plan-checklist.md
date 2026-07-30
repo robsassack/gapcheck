@@ -183,11 +183,11 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Exclude unknown constraints from the resume qualification score
   - [x] Preserve extracted constraints for the Phase 8 preference-fit analysis
   - [x] Test explicit resume matches, explicit conflicts, and missing information; confirm all remain unknown and unscored until Phase 8 preference-fit analysis
-- [ ] Audit score sensitivity to requirement extraction and grouping
-  - [ ] Compare scores when closely related requirements are split versus combined
-  - [ ] Confirm optional lists and compound requirements do not receive disproportionate influence
-  - [ ] Check that the 20-item cap and eligibility-first ordering do not materially distort representative scores
-  - [ ] Prefer stable theme-level influence over sensitivity to exact requirement count
+- [x] Audit score sensitivity to requirement extraction and grouping
+  - [x] Compare scores when closely related requirements are split versus combined
+  - [x] Confirm optional lists and compound requirements do not receive disproportionate influence
+  - [x] Check that the 20-item cap and eligibility-first ordering do not materially distort representative scores
+  - [x] Prefer stable theme-level influence over sensitivity to exact requirement count
 - [ ] Evaluate requirement-aware scoring
   - [ ] Pin proposed source-type weights and a severity formula in the plan before changing code
   - [ ] Ensure preferred qualifications influence the score less than required qualifications

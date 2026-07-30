@@ -98,6 +98,21 @@ score = average over all matches of:
 
 Expressed as a percentage (e.g. `overallScore = Math.round(sum / matches.length * 100)`). This is pinned in code as `MATCH_STATUS_SCORES` plus `computeOverallScore(matches)`. Severity weighting is an explicit v2 stretch, not a v1 requirement.
 
+The Phase 6 sensitivity audit confirms that this status-only mean is
+count-sensitive: splitting one missing optional list into three gaps changed a
+representative audit score from 42 to 31, while a combined partial requirement
+versus three differently supported parts changed another from 50 to 43. The
+production extraction contract therefore treats one source bullet, compound
+list, or closely related prose qualification as one scoring theme and removes
+duplicates and restatements. All four pinned benchmark sets remain below the
+20-item cap (11, 15, 15, and 18 items), so the cap does not directly truncate
+their representative scores. An extraction that reaches the cap remains a
+review warning because eligibility-first ordering can exclude later
+responsibilities. Future scoring proposals should prefer stable theme-level
+influence, but this audit does not add heuristic text-similarity grouping or
+change the v1 formula without a stable code-owned theme identifier. See
+`tests/fixtures/score-sensitivity-audit.md` for the cases and decision boundary.
+
 **Schema details to pin down before building:**
 - `matchedBullets` is a `string[]`, not a single nullable string — a requirement may be supported by two weaker bullets together, and an empty array is cleaner to handle than `null`.
 - Keep `matchedBullets` as the application-facing result, but use compact code-owned `matchedBulletIds` in the model-facing Pass 2 schema. Constrain those IDs to the supplied resume evidence and map them back to the original bullet strings after validation so the model never has to reproduce full evidence text exactly.
