@@ -599,6 +599,22 @@ const evidenceResults = [
     ),
   },
   {
+    name: "session creation failure is recognized as a model runtime error",
+    expected: true,
+    actual: window.GapcheckNano.testHooks.isLanguageModelRuntimeError(
+      new Error(
+        "The device is unable to create a session to run the model. Please check the result of availability() first."
+      )
+    ),
+  },
+  {
+    name: "ordinary model output errors are not runtime availability errors",
+    expected: false,
+    actual: window.GapcheckNano.testHooks.isLanguageModelRuntimeError(
+      new Error("Pass 1 returned invalid JSON.")
+    ),
+  },
+  {
     name: "software developer title supports software duration context",
     expected: true,
     actual:

@@ -48,6 +48,12 @@ responseConstraint → matches[] + summary
 - Fresh Nano session; system prompt instructs it to identify discrete requirement lines
 - `responseConstraint` with JSON schema → returns categorized requirement and explicit-qualifier metadata
 - Session destroyed after use
+- Before the pipeline begins, create and immediately destroy a lightweight
+  session to verify that Chrome can actually start its model process.
+  `LanguageModel.availability()` can still report `"available"` while the
+  browser-owned runtime is in crash or timeout backoff. Known session-runtime
+  failures are not retried; the panel marks the session unavailable and directs
+  the user to restart Chrome and inspect `chrome://on-device-internals`.
 - Feeds only the raw job text into a fresh Nano session — its one job is to identify and return a clean array of discrete requirement lines, not to analyze anything yet. Because the output is short (target: ~20 items at 10–15 words each), this pass stays well within the token budget even for a long job posting. The essential requirements almost always appear early, which is why the character truncation is a reasonable safety valve rather than a lossy compromise.
 
 ### Pass 2 — Analysis (purple)

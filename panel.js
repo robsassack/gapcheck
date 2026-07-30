@@ -7,6 +7,7 @@ const openOptionsBtn = /** @type {HTMLButtonElement} */ (document.getElementById
 const nanoStatusValue = /** @type {HTMLSpanElement} */ (document.getElementById("nanoStatusValue"));
 const nanoStatusDot = /** @type {HTMLSpanElement} */ (document.querySelector("#nanoStatus .status-dot"));
 const nanoStatusHint = /** @type {HTMLParagraphElement} */ (document.getElementById("nanoStatusHint"));
+const retryNanoBtn = /** @type {HTMLButtonElement} */ (document.getElementById("retryNanoBtn"));
 
 const analyzeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("analyzeBtn"));
 const captureHint = /** @type {HTMLParagraphElement} */ (document.getElementById("captureHint"));
@@ -45,6 +46,9 @@ let nanoAvailability = "unknown";
 let isAnalyzing = false;
 let scoreAnimationFrame = 0;
 let hasRenderedAnalysis = false;
+let nanoRetryTimer = 0;
+
+const NANO_AVAILABILITY_RETRY_MS = 15000;
 
 /**
  * @param {string} label
@@ -422,11 +426,62 @@ openOptionsBtn.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
+retryNanoBtn.addEventListener("click", retryNanoModel);
+
 // --- Gemini Nano availability ---------------------------------------------
 // LanguageModel is the current global for Chrome's built-in Prompt API.
 // It won't exist at all on Chrome builds/flags that don't have it enabled.
 
+function clearNanoAvailabilityRetry() {
+  if (nanoRetryTimer !== 0) {
+    window.clearTimeout(nanoRetryTimer);
+    nanoRetryTimer = 0;
+  }
+}
+
+function scheduleNanoAvailabilityRetry() {
+  clearNanoAvailabilityRetry();
+  nanoRetryTimer = window.setTimeout(() => {
+    nanoRetryTimer = 0;
+    checkNanoAvailability();
+  }, NANO_AVAILABILITY_RETRY_MS);
+}
+
+/**
+ * @param {string} message
+ */
+function showNanoRuntimeFailure(message) {
+  nanoAvailability = "runtime-error";
+  nanoStatusDot.dataset.state = "error";
+  nanoStatusValue.textContent = "Session unavailable";
+  nanoStatusHint.textContent =
+    "Chrome could not start the local model. Check again, or relaunch Chrome if it does not recover.";
+  retryNanoBtn.hidden = false;
+  setAnalysisStatus(message, "error");
+}
+
+/**
+ * @param {number} progressPercent
+ */
+function showNanoDownloadProgress(progressPercent) {
+  const roundedProgress = Math.max(
+    0,
+    Math.min(100, Math.round(progressPercent))
+  );
+
+  nanoAvailability = "downloading";
+  nanoStatusDot.dataset.state = "warn";
+  nanoStatusValue.textContent = roundedProgress >= 100
+    ? "Finalizing…"
+    : `Downloading… ${roundedProgress}%`;
+  nanoStatusHint.textContent = roundedProgress >= 100
+    ? "Download complete. Chrome is preparing the model session."
+    : "Keep Chrome open while the on-device model downloads.";
+  retryNanoBtn.hidden = true;
+}
+
 async function checkNanoAvailability() {
+  clearNanoAvailabilityRetry();
   const languageModel = getLanguageModelGlobal();
 
   if (!languageModel) {
@@ -435,6 +490,7 @@ async function checkNanoAvailability() {
     nanoStatusValue.textContent = "Not found";
     nanoStatusHint.textContent =
       "Enable chrome://flags/#optimization-guide-on-device-model and chrome://flags/#prompt-api-for-gemini-nano, then relaunch Chrome.";
+    retryNanoBtn.hidden = false;
     updateAnalyzeButtonState(true);
     return;
   }
@@ -448,32 +504,93 @@ async function checkNanoAvailability() {
         nanoStatusDot.dataset.state = "ok";
         nanoStatusValue.textContent = "Ready";
         nanoStatusHint.textContent = "";
+        retryNanoBtn.hidden = true;
         break;
       case "downloadable":
         nanoStatusDot.dataset.state = "warn";
         nanoStatusValue.textContent = "Not downloaded";
         nanoStatusHint.textContent =
-          "The model downloads on first use. It can take a few minutes — check chrome://on-device-internals for progress.";
+          "Select job text, then choose Download model & analyze.";
+        retryNanoBtn.hidden = true;
         break;
       case "downloading":
         nanoStatusDot.dataset.state = "warn";
         nanoStatusValue.textContent = "Downloading…";
-        nanoStatusHint.textContent = "Check back shortly, or watch chrome://on-device-internals.";
+        nanoStatusHint.textContent =
+          "GapCheck is monitoring the download and will mark the model Ready when it finishes.";
+        retryNanoBtn.hidden = true;
+        if (!isAnalyzing) {
+          scheduleNanoAvailabilityRetry();
+        }
         break;
       default:
         nanoStatusDot.dataset.state = "error";
         nanoStatusValue.textContent = "Unavailable";
         nanoStatusHint.textContent =
-          "This device or Chrome build doesn't support the on-device model.";
+          "Chrome paused the local model. GapCheck will check again automatically; relaunch Chrome if it does not recover.";
+        retryNanoBtn.hidden = false;
+        scheduleNanoAvailabilityRetry();
     }
   } catch (err) {
     console.error(err);
     nanoAvailability = "error";
     nanoStatusDot.dataset.state = "error";
     nanoStatusValue.textContent = "Error";
-    nanoStatusHint.textContent = "See the side panel console for details.";
+    nanoStatusHint.textContent =
+      "GapCheck could not check the local model. Try again, or relaunch Chrome if the error continues.";
+    retryNanoBtn.hidden = false;
+    scheduleNanoAvailabilityRetry();
   } finally {
     updateAnalyzeButtonState();
+  }
+}
+
+async function retryNanoModel() {
+  clearNanoAvailabilityRetry();
+  retryNanoBtn.disabled = true;
+  retryNanoBtn.textContent = "Checking…";
+  nanoStatusDot.dataset.state = "unknown";
+  nanoStatusValue.textContent = "Checking…";
+  nanoStatusHint.textContent = "";
+
+  try {
+    await checkNanoAvailability();
+
+    if (
+      nanoAvailability !== "available" &&
+      nanoAvailability !== "downloadable" &&
+      nanoAvailability !== "downloading"
+    ) {
+      return;
+    }
+
+    const gapcheckNano = gapcheckWindow.GapcheckNano;
+
+    if (!gapcheckNano) {
+      throw new Error("GapCheck analysis helpers are not available.");
+    }
+
+    await gapcheckNano.ensureLanguageModelReady(showNanoDownloadProgress);
+    await checkNanoAvailability();
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : "Model check failed.";
+
+    if (err instanceof Error && err.name === "GapcheckModelRuntimeError") {
+      showNanoRuntimeFailure(message);
+    } else {
+      nanoAvailability = "error";
+      nanoStatusDot.dataset.state = "error";
+      nanoStatusValue.textContent = "Error";
+      nanoStatusHint.textContent =
+        "GapCheck could not check the local model. Try again, or relaunch Chrome if the error continues.";
+      retryNanoBtn.hidden = false;
+      setAnalysisStatus(message, "error");
+    }
+  } finally {
+    retryNanoBtn.disabled = false;
+    retryNanoBtn.textContent = "Check model again";
+    updateAnalyzeButtonState(true);
   }
 }
 
@@ -531,19 +648,30 @@ analyzeBtn.addEventListener("click", async () => {
     showAnalysisProgress("Analyzing selected text", "Checking on-device model...");
     await checkNanoAvailability();
 
+    if (
+      nanoAvailability !== "available" &&
+      nanoAvailability !== "downloadable" &&
+      nanoAvailability !== "downloading"
+    ) {
+      throw new Error("The on-device model is not available yet.");
+    }
+
+    const gapcheckNano = gapcheckWindow.GapcheckNano;
+    if (!gapcheckNano) {
+      throw new Error("GapCheck analysis helpers are not available.");
+    }
+
     if (nanoAvailability === "downloadable" || nanoAvailability === "downloading") {
       setAnalysisStatus("", "info");
       showAnalysisProgress("Preparing on-device model", "Downloading model...");
-      const gapcheckNano = gapcheckWindow.GapcheckNano;
-      if (!gapcheckNano) {
-        throw new Error("GapCheck analysis helpers are not available.");
-      }
-      await gapcheckNano.ensureLanguageModelReady((progressPercent) => {
-        const roundedProgress = Math.round(progressPercent);
-        showAnalysisProgress("Preparing on-device model", `Downloading model: ${roundedProgress}%`);
-      });
-      await checkNanoAvailability();
     }
+
+    await gapcheckNano.ensureLanguageModelReady((progressPercent) => {
+      const roundedProgress = Math.round(progressPercent);
+      showNanoDownloadProgress(progressPercent);
+      showAnalysisProgress("Preparing on-device model", `Downloading model: ${roundedProgress}%`);
+    });
+    await checkNanoAvailability();
 
     if (nanoAvailability !== "available") {
       throw new Error("The on-device model is not available yet.");
@@ -551,10 +679,6 @@ analyzeBtn.addEventListener("click", async () => {
 
     setAnalysisStatus("Extracting requirements...", "info");
     showAnalysisProgress("Analyzing selected text", "Pass 1 of 2: extracting requirements...");
-    const gapcheckNano = gapcheckWindow.GapcheckNano;
-    if (!gapcheckNano) {
-      throw new Error("GapCheck analysis helpers are not available.");
-    }
     const requirements = await gapcheckNano.extractRequirementsFromJobText(capturedJobText);
 
     if (requirements.length === 0) {
@@ -580,9 +704,16 @@ analyzeBtn.addEventListener("click", async () => {
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "Analysis failed.";
+    const isModelRuntimeFailure =
+      err instanceof Error && err.name === "GapcheckModelRuntimeError";
+
+    if (isModelRuntimeFailure) {
+      showNanoRuntimeFailure(message);
+    }
+
     if (hasFreshCapture) {
       showEmptyState(
-        "Analysis failed",
+        isModelRuntimeFailure ? "On-device model could not start" : "Analysis failed",
         message,
       );
     } else if (message !== "Highlight the job description on the page first.") {

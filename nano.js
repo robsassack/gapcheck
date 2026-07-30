@@ -237,11 +237,14 @@ const PASS_1_OTHER_SECTION_HEADING_PATTERN =
  */
 
 /**
+ * @typedef {object} LanguageModelCreateOptions
+ * @property {{ role: "system" | "user" | "assistant", content: string }[]} [initialPrompts]
+ * @property {(monitor: EventTarget) => void} [monitor]
+ */
+
+/**
  * @typedef {object} LanguageModelGlobal
- * @property {(options?: {
- *   initialPrompts?: { role: "system" | "user" | "assistant", content: string }[],
- *   monitor?: (monitor: EventTarget) => void
- * }) => Promise<LanguageModelSession>} create
+ * @property {(options?: LanguageModelCreateOptions) => Promise<LanguageModelSession>} create
  * @property {() => Promise<"available" | "downloadable" | "downloading" | "unavailable">} availability
  */
 
@@ -252,6 +255,50 @@ function getLanguageModelGlobal() {
   return /** @type {{ LanguageModel?: LanguageModelGlobal }} */ (
     /** @type {unknown} */ (globalThis)
   ).LanguageModel;
+}
+
+/**
+ * Chrome can report the model as available even when its process has entered a
+ * crash or timeout backoff state.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isLanguageModelRuntimeError(error) {
+  const message =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof /** @type {{ message?: unknown }} */ (error).message === "string"
+      ? /** @type {{ message: string }} */ (error).message
+      : String(error || "");
+
+  return /\bunable to create a session\b|\bmodel process crashed too many times\b|\btoo many recent (?:crashes|timeouts)\b|\bon-device model\b.*\bservice\b.*\bnot running\b/i.test(
+    message
+  );
+}
+
+/**
+ * @param {LanguageModelGlobal} languageModel
+ * @param {LanguageModelCreateOptions} [options]
+ * @returns {Promise<LanguageModelSession>}
+ */
+async function createLanguageModelSession(languageModel, options) {
+  try {
+    return await languageModel.create(options);
+  } catch (error) {
+    if (!isLanguageModelRuntimeError(error)) {
+      throw error;
+    }
+
+    const detail = error instanceof Error ? error.message : String(error);
+    const runtimeError = new Error(
+      "Chrome reports that the on-device model is installed, but its model process could not start a session. Fully quit and restart Chrome, then check chrome://on-device-internals if the problem continues. " +
+      `Original error: ${detail}`
+    );
+    runtimeError.name = "GapcheckModelRuntimeError";
+    throw runtimeError;
+  }
 }
 
 /**
@@ -275,7 +322,8 @@ function getLanguageModelGlobal() {
  *       assertValidPass1ExtractionResult: typeof assertValidPass1ExtractionResult,
  *       createExtractedRequirement: typeof createExtractedRequirement,
  *       labelExplicitJobBullets: typeof labelExplicitJobBullets,
- *       mergeRelatedPass1RequirementsToLimit: typeof mergeRelatedPass1RequirementsToLimit
+ *       mergeRelatedPass1RequirementsToLimit: typeof mergeRelatedPass1RequirementsToLimit,
+ *       isLanguageModelRuntimeError: typeof isLanguageModelRuntimeError
  *     },
  *     enableDebug: typeof enableDebug,
  *     disableDebug: typeof disableDebug,
@@ -466,10 +514,6 @@ async function ensureLanguageModelReady(onDownloadProgress) {
 
   const availability = await languageModel.availability();
 
-  if (availability === "available") {
-    return;
-  }
-
   if (availability === "unavailable") {
     throw new Error("This device or Chrome build does not support the on-device model.");
   }
@@ -478,7 +522,7 @@ async function ensureLanguageModelReady(onDownloadProgress) {
   let session = null;
 
   try {
-    session = await languageModel.create({
+    session = await createLanguageModelSession(languageModel, {
       monitor(monitor) {
         if (!onDownloadProgress) {
           return;
@@ -651,7 +695,7 @@ async function categorizePass1Requirements(
   let session = null;
 
   try {
-    session = await languageModel.create({
+    session = await createLanguageModelSession(languageModel, {
       initialPrompts: [
           {
             role: "system",
@@ -695,7 +739,7 @@ async function reviewPass1Extraction(
   let session = null;
 
   try {
-    session = await languageModel.create({
+    session = await createLanguageModelSession(languageModel, {
       initialPrompts: [
           {
             role: "system",
@@ -2281,7 +2325,7 @@ async function reviewPass2Analysis(
   let session = null;
 
   try {
-    session = await languageModel.create({
+    session = await createLanguageModelSession(languageModel, {
       initialPrompts: [
         {
           role: "system",
@@ -3449,7 +3493,7 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
     let session = null;
 
     try {
-      session = await languageModel.create({
+      session = await createLanguageModelSession(languageModel, {
         initialPrompts: [
           {
             role: "system",
@@ -4126,6 +4170,7 @@ function computeOverallScore(matches) {
     createExtractedRequirement,
     labelExplicitJobBullets,
     mergeRelatedPass1RequirementsToLimit,
+    isLanguageModelRuntimeError,
   }),
   enableDebug,
   disableDebug,

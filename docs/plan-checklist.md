@@ -52,7 +52,12 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Add a browser-run scoring test fixture against hand-built `matches[]` cases (all covered, all gap, mixed, empty)
 - [x] Error handling
   - [x] Handle `LanguageModel.availability()` states other than `"available"` gracefully (e.g. block the analyze action, show a download-in-progress message)
+  - [x] Probe actual session creation before analysis because Chrome can report `"available"` while its model process is in crash or timeout backoff
+  - [x] Treat known model-process failures as non-retryable and show restart plus `chrome://on-device-internals` guidance
+  - [x] Treat `"unavailable"` as a current Chrome runtime state rather than claiming the device is permanently unsupported
+  - [x] Recheck temporary unavailability automatically and provide an in-panel session retry before showing advanced diagnostics
   - [x] If availability is `"downloadable"`, trigger `LanguageModel.create()` from the analyze action and show `downloadprogress` in the panel
+  - [x] Show model-download percentage and finalization in the status row, poll externally active downloads, and mark completion as `"Ready"`
   - [x] Handle malformed/unparseable model output without crashing the panel (retry once, then show an error state)
   - [x] Handle empty selection / empty resume with a clear inline message instead of silently failing
 
@@ -205,6 +210,9 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Add deterministic browser-run tests for all statuses, source types, severities, and zero-weight or excluded constraints
 - [ ] Re-run malformed-output, long-input, and manual browser tests
 - [ ] Document the resulting scoring behavior and known limitations
+- [ ] Add a Cancel analysis button for the current side-panel analysis
+  - [ ] Abort the active model prompt/session without clearing the last completed result
+  - [ ] Restore the analyze controls and show a clear cancelled state
 
 ---
 

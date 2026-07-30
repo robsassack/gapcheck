@@ -56,7 +56,7 @@ expected behavior, cancellation behavior, and report details.
 
 ## Built-In AI Requirement
 
-GapCheck uses Chrome's built-in Prompt API with Gemini Nano for local analysis. It requires a supported desktop Chrome installation with the Prompt API available. The side panel checks model readiness, starts the model download from the Analyze action when needed, and displays download or unavailable states.
+GapCheck uses Chrome's built-in Prompt API with Gemini Nano for local analysis. It requires a supported desktop Chrome installation with the Prompt API available. The side panel checks model readiness, starts the model download from the Analyze action when needed, shows download and finalization progress, automatically rechecks temporary unavailability or active downloads, and provides an in-panel session retry.
 
 The initial model download can take time. If Chrome reports that the model is unavailable, follow the status shown in the side panel and confirm that the device and Chrome installation support the built-in Prompt API.
 
