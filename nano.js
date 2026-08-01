@@ -1819,6 +1819,8 @@ const PASS_2_GENERIC_NAMED_WORD_EXCLUSIONS = new Set([
   "Use",
   "Work",
 ]);
+const PASS_2_CAPABILITY_LIST_PREFIX_PATTERN =
+  /^(?:(?:technical|core)\s+)?(?:skills?|competenc(?:y|ies)|proficienc(?:y|ies))\s*:|^(?:(?:programming|scripting|markup)\s+)?languages?\s*:|^(?:(?:core|web)\s+)?technolog(?:y|ies)\s*:|^(?:tech(?:nology)?\s+stack|development\s+tools?|software(?:\s+(?:and|&)\s+tools?)?|tools?(?:\s+(?:and|&)\s+technolog(?:y|ies))?|frameworks?(?:\s+(?:and|&)\s+libraries)?|libraries|databases?|platforms?|cloud(?:\s+platforms?)?|certifications?|areas?\s+of\s+expertise)\s*:/i;
 
 /**
  * @param {string} text
@@ -1922,6 +1924,69 @@ function sharesPass2NamedConcept(requirement, evidenceText) {
   });
 }
 
+/**
+ * Match an explicitly listed capability to a requirement without treating a
+ * coincidental shared word in ordinary prose as skill evidence. Version
+ * suffixes such as HTML5 and Python3 remain compatible with their base names.
+ *
+ * @param {string} requirement
+ * @param {string} evidenceText
+ * @returns {boolean}
+ */
+function sharesPass2CapabilityListItem(requirement, evidenceText) {
+  if (!PASS_2_CAPABILITY_LIST_PREFIX_PATTERN.test(evidenceText.trim())) {
+    return false;
+  }
+
+  const separatorIndex = evidenceText.indexOf(":");
+  const requirementTokens = getPass2EvidenceTokens(requirement);
+  const capabilityItems = evidenceText
+    .slice(separatorIndex + 1)
+    .split(/[,;|]|\s+\/\s+/)
+    .map((item) => item.replace(/\s*\([^)]*\)\s*$/, "").trim())
+    .filter(Boolean);
+
+  return capabilityItems.some((item) => {
+    const itemTokens = getPass2EvidenceTokens(item);
+
+    return itemTokens.size > 0 &&
+      [...itemTokens].every((itemToken) => {
+        return [...requirementTokens].some((requirementToken) => {
+          if (pass2TokensAreRelated(itemToken, requirementToken)) {
+            return true;
+          }
+
+          const itemBase = itemToken.replace(/\d+$/, "");
+          const requirementBase = requirementToken.replace(/\d+$/, "");
+
+          return itemBase.length >= 3 && itemBase === requirementBase;
+        });
+      });
+  });
+}
+
+/**
+ * A labeled skills list can directly substantiate a simple knowledge claim,
+ * but it cannot by itself prove that the candidate performed an activity.
+ *
+ * @param {string} requirement
+ * @param {string[]} evidenceTexts
+ * @returns {boolean}
+ */
+function pass2CapabilityListCoversKnowledgeRequirement(
+  requirement,
+  evidenceTexts
+) {
+  const requestsOnlyKnowledge =
+    /^\s*(?:know\b|(?:have\s+(?:a\s+)?)?(?:basic\s+)?(?:knowledge|understanding)\s+of\b|familiarity\s+with\b|comfortable\s+(?:with|in)\b|proficien(?:t|cy)\s+(?:with|in)\b)/i.test(
+      requirement
+    );
+
+  return requestsOnlyKnowledge && evidenceTexts.some((evidenceText) => {
+    return sharesPass2CapabilityListItem(requirement, evidenceText);
+  });
+}
+
 const PASS_2_DATE_RANGE_SOURCE =
   String.raw`\b(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+)?(20\d{2})\s*(?:[-–—]|\bto\b)\s*(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+)?(20\d{2}|present)\b`;
 
@@ -1970,7 +2035,7 @@ function getPass2DateIntervals(text) {
  * @returns {boolean}
  */
 function isPass2HeadingOnlyEvidence(evidenceText) {
-  if (/^(?:technical\s+)?skills?\s*:/i.test(evidenceText.trim())) {
+  if (PASS_2_CAPABILITY_LIST_PREFIX_PATTERN.test(evidenceText.trim())) {
     return false;
   }
 
@@ -2011,7 +2076,7 @@ function isPass2HeadingOnlyEvidence(evidenceText) {
     titleCaseWords.every((word) => {
       return /^[A-Z][A-Za-z.+#/-]*$/.test(word) || /^[A-Z]{2,}$/.test(word);
     }) &&
-    !/^technical\s+skills?\b|^skills?\b/i.test(evidenceText.trim());
+    !/^(?:technical\s+)?skills?\b/i.test(evidenceText.trim());
 
   return letters.length > 0 &&
     ((wordCount <= 6 && letters === letters.toUpperCase()) ||
@@ -2238,13 +2303,19 @@ function getPass2GapRecoveryEvidenceScore(requirement, evidenceText) {
           return family.test(clause) && family.test(evidenceText);
         });
       const sharesNamedConcept = sharesPass2NamedConcept(clause, evidenceText);
+      const sharesListedCapability = sharesPass2CapabilityListItem(
+        clause,
+        evidenceText
+      );
       const explicitlyRequestsNamedExperience =
         /\b(?:experience|familiarity|knowledge|understanding)\s+(?:of|with)\b|\bcomfortable\b|\bworks?\s+primarily\s+in\b/i.test(
           clause
         );
       const score = sharedTokenCount >= 2
         ? sharedTokenCount
-        : sharesNamedConcept &&
+        : sharesListedCapability
+          ? 2
+          : sharesNamedConcept &&
             (requirementTokens.size <= 4 ||
               explicitlyRequestsNamedExperience)
           ? 2
@@ -2668,6 +2739,20 @@ function getPass2RequiredYears(requirement) {
 function coveredPass2EvidenceIsComplete(requirement, evidenceTexts) {
   const combinedEvidence = evidenceTexts.join("\n");
   const requiredYears = getPass2RequiredYears(requirement);
+  const citesOnlyCapabilityLists = evidenceTexts.length > 0 &&
+    evidenceTexts.every((evidenceText) => {
+      return PASS_2_CAPABILITY_LIST_PREFIX_PATTERN.test(evidenceText.trim());
+    });
+
+  if (
+    citesOnlyCapabilityLists &&
+    !pass2CapabilityListCoversKnowledgeRequirement(
+      requirement,
+      evidenceTexts
+    )
+  ) {
+    return false;
+  }
 
   if (requiredYears !== null) {
     const intervals = getPass2DateIntervals(combinedEvidence)
@@ -4041,7 +4126,11 @@ function normalizePass2DirectPartials(
 
     if (
       candidateIds.length > 0 &&
-      (hasActionBasedNamedEvidence ||
+      (pass2CapabilityListCoversKnowledgeRequirement(
+        requirements[index],
+        evidenceTexts
+      ) ||
+        hasActionBasedNamedEvidence ||
         pass2EvidenceDirectlyCoversRequirement(
           requirements[index],
           evidenceTexts

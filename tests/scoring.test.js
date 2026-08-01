@@ -544,6 +544,49 @@ const normalizedDurationFixture =
       },
     ]
   );
+const languagesEvidence =
+  "Languages: TypeScript, JavaScript, Python, HTML / CSS, Java, Apex, SOQL";
+const languageListGapRecoveryFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Develop front-end application features using HTML",
+      "Experience with HTML5",
+    ],
+    [languagesEvidence],
+    [
+      {
+        requirement: "Develop front-end application features using HTML",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement: "Experience with HTML5",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+    ]
+  );
+const basicHtmlClassificationFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    ["Build websites with HTML", "Know basic HTML"],
+    [languagesEvidence],
+    [
+      {
+        requirement: "Build websites with HTML",
+        status: "covered",
+        matchedBullets: [languagesEvidence],
+        severity: null,
+      },
+      {
+        requirement: "Know basic HTML",
+        status: "partial",
+        matchedBullets: [languagesEvidence],
+        severity: "low",
+      },
+    ]
+  );
 const onsiteConstraint =
   "Work from the Bellwether City office two days per week";
 const explicitConstraintMatchEvidence =
@@ -864,6 +907,57 @@ const evidenceResults = [
     actual: window.GapcheckNano.testHooks.isPass2HeadingOnlyEvidence(
       "candidate@example.com – 555-010-2020 – github.com/candidate"
     ),
+  },
+  {
+    name: "languages list is substantive skill evidence",
+    expected: false,
+    actual: window.GapcheckNano.testHooks.isPass2HeadingOnlyEvidence(
+      "Languages: TypeScript, JavaScript, Python, HTML / CSS, Java, Apex, SOQL"
+    ),
+  },
+  {
+    name: "common technology list labels are substantive skill evidence",
+    expected: true,
+    actual: [
+      "Programming Languages: JavaScript, Python",
+      "Technologies: HTML, CSS, React",
+      "Tools & Technologies: Git, Docker, AWS",
+      "Frameworks & Libraries: React, Express",
+      "Databases: PostgreSQL, SQLite",
+      "Core Competencies: Accessibility, Responsive Design",
+    ].every((evidenceText) => {
+      return !window.GapcheckNano.testHooks.isPass2HeadingOnlyEvidence(
+        evidenceText
+      );
+    }),
+  },
+  {
+    name: "HTML in a languages list repairs an incorrect model gap",
+    expected: "partial",
+    actual: languageListGapRecoveryFixture[0].status,
+  },
+  {
+    name: "HTML in a languages list supports an HTML5 requirement",
+    expected: "partial",
+    actual: languageListGapRecoveryFixture[1].status,
+  },
+  {
+    name: "skills-only HTML evidence is cited but not overstated as experience",
+    expected: true,
+    actual:
+      languageListGapRecoveryFixture[0].matchedBullets.includes(
+        languagesEvidence
+      ) && languageListGapRecoveryFixture[0].status !== "covered",
+  },
+  {
+    name: "skills list does not fully prove building websites",
+    expected: "partial",
+    actual: basicHtmlClassificationFixture[0].status,
+  },
+  {
+    name: "skills list directly covers basic HTML knowledge",
+    expected: "covered",
+    actual: basicHtmlClassificationFixture[1].status,
   },
   {
     name: "session creation failure is recognized as a model runtime error",
