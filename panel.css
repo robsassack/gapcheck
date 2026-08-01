@@ -518,9 +518,145 @@ body {
 
 /* Options page */
 .options-page {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 24px;
+}
+
+.pdf-import-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 18px;
+  padding: 14px;
+}
+
+.pdf-import-card h2,
+.pdf-preview h3 {
+  font-size: 13px;
+  margin: 0;
+}
+
+.pdf-import-card p {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.pdf-import-actions,
+.pdf-preview-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.secondary-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 13px;
+}
+
+.secondary-btn:hover {
+  background: var(--bg);
+}
+
+.secondary-btn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.pdf-file-name {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-import-status:empty {
+  display: none;
+}
+
+.pdf-import-status[data-state="ok"] {
+  color: var(--accent);
+}
+
+.pdf-import-status[data-state="error"] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.pdf-preview {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.pdf-preview[hidden] {
+  display: none;
+}
+
+.pdf-preview-header {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.pdf-preview-header span {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.pdf-preview pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin: 8px 0 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+.pdf-preview-actions .primary-btn {
+  width: auto;
+}
+
+.options-divider {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 11px;
+  gap: 10px;
+  margin: 18px 0 10px;
+  text-transform: uppercase;
+}
+
+.options-divider::before,
+.options-divider::after {
+  background: var(--border);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.options-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 
 .options-page textarea {

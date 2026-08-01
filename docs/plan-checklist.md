@@ -192,8 +192,8 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Identify availability, location, work arrangement, travel, schedule, and interview or trial-period commitments
   - [x] Treat a resume's silence about those constraints as unknown rather than a gap
   - [x] Exclude unknown constraints from the resume qualification score
-  - [x] Preserve extracted constraints for the Phase 8 preference-fit analysis
-  - [x] Test explicit resume matches, explicit conflicts, and missing information; confirm all remain unknown and unscored until Phase 8 preference-fit analysis
+  - [x] Preserve extracted constraints for the Phase 10 preference-fit analysis
+  - [x] Test explicit resume matches, explicit conflicts, and missing information; confirm all remain unknown and unscored until Phase 10 preference-fit analysis
 - [x] Audit score sensitivity to requirement extraction and grouping
   - [x] Compare scores when closely related requirements are split versus combined
   - [x] Confirm optional lists and compound requirements do not receive disproportionate influence
@@ -225,7 +225,39 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ---
 
-## Phase 7 — Saved Analysis History
+## Phase 7 — PDF Resume Import
+
+- [x] Select a local PDF text-extraction approach compatible with Manifest V3
+- [x] Review dependency license, packaged size, and content-security-policy needs
+- [x] Add a local PDF file picker to the options page
+- [x] Extract PDF text without uploading the file
+- [x] Preview extracted text before replacing the saved resume
+- [x] Feed confirmed text through the existing normalization and bullet parser
+- [x] Preserve pasted text as a fallback and existing saved data until import is confirmed
+- [x] Handle encrypted, malformed, empty, and image-only PDFs with clear errors
+- [x] Test generated single-column, multi-column, and long resume PDFs
+- [x] Confirm no network calls are introduced
+- [x] Update README usage, privacy, and limitations
+- [x] Run a manual Chrome options-page smoke test with a real resume PDF
+
+---
+
+## Phase 8 — Chrome Web Store Release
+
+- [ ] Review current Chrome Web Store policies and developer-account requirements
+- [ ] Audit manifest permissions and document why broad page access is required
+- [ ] Prepare a production package that excludes development-only tests and documentation
+- [ ] Validate manifest metadata, icons, versioning, and minimum Chrome requirements
+- [ ] Prepare the store description, screenshots, and required promotional assets
+- [ ] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis
+- [ ] Run a fresh-install smoke test, including first-time model download and PDF import
+- [ ] Test the packaged build on representative supported desktop environments
+- [ ] Upload the production package and resolve automated validation findings
+- [ ] Submit for review and record the release process for future updates
+
+---
+
+## Phase 9 — Saved Analysis History
 
 - [ ] Define a versioned local analysis-record schema
   - [ ] Include an ID, creation timestamp, score, summary, requirements, and matches
@@ -244,7 +276,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ---
 
-## Phase 8 — Job Preferences and Fit Context
+## Phase 10 — Job Preferences and Fit Context
 
 - [ ] Define optional preference fields
   - [ ] Location
@@ -265,7 +297,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ---
 
-## Phase 9 — Resume Improvement Suggestions
+## Phase 11 — Resume Improvement Suggestions
 
 - [ ] Define structured suggestion output derived from partial matches and gaps
 - [ ] Distinguish missing resume evidence from genuinely missing experience
@@ -280,23 +312,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ---
 
-## Phase 10 — PDF Resume Import
-
-- [ ] Select a local PDF text-extraction approach compatible with Manifest V3
-- [ ] Review dependency license, packaged size, and content-security-policy needs
-- [ ] Add a local PDF file picker to the options page
-- [ ] Extract PDF text without uploading the file
-- [ ] Preview extracted text before replacing the saved resume
-- [ ] Feed confirmed text through the existing normalization and bullet parser
-- [ ] Preserve pasted text as a fallback and existing saved data until import is confirmed
-- [ ] Handle encrypted, malformed, empty, and image-only PDFs with clear errors
-- [ ] Test representative single-column, multi-column, and long resumes
-- [ ] Confirm no network calls are introduced
-- [ ] Update README usage, privacy, and limitations
-
----
-
-## Phase 11 — Automatic Job-Page Capture
+## Phase 12 — Automatic Job-Page Capture
 
 - [ ] Add an explicit user-triggered "Use page text" action
 - [ ] Continue to prefer selected text when a selection exists

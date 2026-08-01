@@ -9,12 +9,40 @@
   <header class="app-header">
     <h1>Resume setup</h1>
     <p class="subtitle">
-      Paste your resume below, one bullet or line per achievement. This is stored locally in the
-      browser and used locally when you run an analysis. Neither your resume nor your analysis
-      leaves your device.
+      Import a PDF or paste your resume below, one bullet or line per achievement. Your resume is
+      stored locally in the browser and used locally when you run an analysis. Neither your resume
+      nor your analysis leaves your device.
     </p>
   </header>
 
+  <section class="pdf-import-card" aria-labelledby="pdfImportTitle">
+    <div>
+      <h2 id="pdfImportTitle">Import from PDF</h2>
+      <p>Choose a text-based PDF. GapCheck extracts it locally and lets you review the text before replacing your saved resume.</p>
+    </div>
+    <div class="pdf-import-actions">
+      <button class="secondary-btn" id="choosePdfBtn" type="button">Choose PDF</button>
+      <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" hidden />
+      <span class="pdf-file-name" id="pdfFileName">No file selected</span>
+    </div>
+    <p class="pdf-import-status" id="pdfImportStatus" role="status" aria-live="polite"></p>
+
+    <section class="pdf-preview" id="pdfPreviewSection" aria-labelledby="pdfPreviewTitle" hidden>
+      <div class="pdf-preview-header">
+        <h3 id="pdfPreviewTitle">Extracted text preview</h3>
+        <span id="pdfPreviewMeta"></span>
+      </div>
+      <pre id="pdfPreviewText"></pre>
+      <div class="pdf-preview-actions">
+        <button class="primary-btn" id="usePdfBtn" type="button">Use and save this resume</button>
+        <button class="secondary-btn" id="cancelPdfBtn" type="button">Cancel import</button>
+      </div>
+    </section>
+  </section>
+
+  <div class="options-divider"><span>or paste and edit text</span></div>
+
+  <label class="options-label" for="resumeText">Resume text</label>
   <textarea id="resumeText" placeholder="Built CI/CD pipelines automating Salesforce deployments with PowerShell and the Salesforce CLI...&#10;Reduced pipeline failures by...&#10;Led migration of..."></textarea>
 
   <div class="save-row">
@@ -24,6 +52,6 @@
   </div>
 
   <script src="resume-parser.js"></script>
-  <script src="options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>

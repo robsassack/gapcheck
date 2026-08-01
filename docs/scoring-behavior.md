@@ -27,7 +27,7 @@ Work and application constraints—such as location, work authorization,
 schedule, travel, and application commitments—are returned as `unknown` and
 excluded from the qualification score. Resume silence cannot establish these
 conditions, and GapCheck defers explicit preference matches or conflicts to the
-planned Phase 8 preference analysis.
+planned Phase 10 preference analysis.
 
 Phase 6 compared the status-only score with source-weighted,
 severity-weighted, and combined alternatives. All candidates preserved the
@@ -114,14 +114,16 @@ runs.
 - Long postings take longer because each section receives an extraction and a
   completeness pass before resume comparison begins.
 - Work and application constraints cannot yet be reported as preference
-  matches or conflicts; they remain unknown and unscored until Phase 8.
+  matches or conflicts; they remain unknown and unscored until Phase 10.
 - Severity is model-generated, may vary by one level, and does not affect the
   current percentage. Missing partial or gap severity defaults to `medium`.
 - Direct evidence can occasionally receive conservative partial credit. In the
   final Product Operations smoke test, direct SQL usage was cited correctly but
   remained partial rather than covered.
-- Resume parsing depends on plain-text line and bullet structure. PDF import is
-  not included, and poorly structured pasted text can reduce evidence quality.
+- Resume parsing depends on plain-text line and bullet structure. PDF import
+  extracts the file's embedded text layer locally, but unusual reading order or
+  complex layouts may need correction in the resume editor after import.
+  Scanned or image-only PDFs are rejected because OCR is not included.
 - Job text must be selected manually. GapCheck does not currently capture the
   full page automatically.
 - Analysis requires a supported desktop Chrome installation with the built-in

@@ -1,11 +1,12 @@
 {
   "private": true,
   "scripts": {
-    "test": "node tests/run-scoring-tests.js",
+    "test": "node tests/run-scoring-tests.js && node tests/pdf-resume-import.test.mjs",
     "typecheck": "tsc --project jsconfig.json && tsc --project tests/jsconfig.json"
   },
   "devDependencies": {
     "@types/chrome": "^0.2.2",
+    "pdfjs-dist": "6.1.200",
     "typescript": "^7.0.2"
   }
 }

@@ -292,23 +292,34 @@ The implemented scoring contract, final calibration interpretation, long-input
 behavior, and accepted limitations are recorded in
 [`scoring-behavior.md`](scoring-behavior.md).
 
-### Phase 7 — Saved Analysis History
-
-Store successful analysis records locally using a versioned, bounded schema. Let users reopen, delete, or clear saved analyses while keeping malformed or older records from breaking the side panel.
-
-### Phase 8 — Job Preferences and Fit Context
-
-Add optional local preferences for factors such as location, work arrangement, compensation, benefits, and employment type. Show preference matches, conflicts, and unknowns separately from the resume qualification score so the existing percentage retains its meaning.
-
-### Phase 9 — Resume Improvement Suggestions
-
-Generate suggestions from partial matches and gaps while distinguishing weak resume evidence from genuinely missing experience. Suggestions must never invent skills, credentials, accomplishments, or metrics and must not overwrite the saved resume.
-
-### Phase 10 — PDF Resume Import
+### Phase 7 — PDF Resume Import
 
 Extract text from a locally selected PDF, preview it, and feed it through the existing resume-normalization path without uploading the file. Keep pasted text as a fallback and clearly reject encrypted, malformed, empty, or image-only PDFs that cannot be processed.
 
-### Phase 11 — Automatic Job-Page Capture
+Implementation decision: use the pinned Apache-2.0-licensed Mozilla PDF.js
+6.1.200 display build and worker, bundled locally under `vendor/pdfjs`. The two
+runtime modules add roughly 3 MB before packaging. Extraction receives only an
+in-memory `Uint8Array`, disables WebAssembly and dynamic evaluation, and does
+not require remote scripts, network fetches, or a relaxed extension content
+security policy. OCR remains explicitly out of scope.
+
+### Phase 8 — Chrome Web Store Release
+
+Prepare a production-only extension package, audit and explain its permissions, complete the store listing and privacy disclosures, and validate the complete first-install experience before submitting it to the Chrome Web Store.
+
+### Phase 9 — Saved Analysis History
+
+Store successful analysis records locally using a versioned, bounded schema. Let users reopen, delete, or clear saved analyses while keeping malformed or older records from breaking the side panel.
+
+### Phase 10 — Job Preferences and Fit Context
+
+Add optional local preferences for factors such as location, work arrangement, compensation, benefits, and employment type. Show preference matches, conflicts, and unknowns separately from the resume qualification score so the existing percentage retains its meaning.
+
+### Phase 11 — Resume Improvement Suggestions
+
+Generate suggestions from partial matches and gaps while distinguishing weak resume evidence from genuinely missing experience. Suggestions must never invent skills, credentials, accomplishments, or metrics and must not overwrite the saved resume.
+
+### Phase 12 — Automatic Job-Page Capture
 
 Add an explicit, user-triggered page-text fallback while continuing to prefer selected text. Start with site-agnostic readable-content extraction, preview the result before analysis, preserve manual selection, and review whether the extension's host permissions can be narrowed.
 

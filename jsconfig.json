@@ -7,5 +7,11 @@
     "target": "ES2022",
     "types": ["chrome"]
   },
-  "files": ["nano.js", "panel.js"]
+  "files": [
+    "nano.js",
+    "options.js",
+    "panel.js",
+    "pdf-resume-import.mjs",
+    "resume-parser.js"
+  ]
 }
