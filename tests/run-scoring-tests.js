@@ -34,6 +34,7 @@ try {
     "tests/scoring.test.js",
     "tests/score-sensitivity.test.js",
     "tests/requirement-aware-scoring.test.js",
+    "tests/model-output-retry.test.js",
   ]) {
     const source = fs.readFileSync(file, "utf8");
     vm.runInContext(source, context, { filename: file });
@@ -43,7 +44,10 @@ try {
   throw error;
 }
 
-process.stdout.write(`${testOutput.textContent}\n`);
+const retryTestPromise = context.window.GapcheckModelOutputRetryTestPromise;
+
+Promise.resolve(retryTestPromise).then(() => {
+  process.stdout.write(`${testOutput.textContent}\n`);
 
 const pinnedRequirementCounts = fs
   .readdirSync("tests/fixtures", { withFileTypes: true })
@@ -114,3 +118,8 @@ process.stdout.write(
     .map((fixture) => `${fixture.family}: ${fixture.count}`)
     .join(", ")}).\n`
 );
+}).catch((error) => {
+  process.stdout.write(`${testOutput.textContent}\n`);
+  process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+  process.exitCode = 1;
+});

@@ -7,5 +7,9 @@
     "skipLibCheck": true,
     "target": "ES2022"
   },
-  "files": ["benchmark-scoring.js", "benchmark-runner.js"]
+  "files": [
+    "benchmark-scoring.js",
+    "benchmark-runner.js",
+    "model-output-retry.test.js"
+  ]
 }

@@ -208,7 +208,16 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Reject the change if severity variation makes scores less stable or less intuitive (rejected at the earlier improvement gate; no stability rerun needed)
   - [x] If adopted, implement the formula as a pure code-owned function (not adopted; retain the existing pure status-only function)
   - [x] Add deterministic browser-run tests for all statuses, source types, severities, and zero-weight or excluded constraints
-- [ ] Re-run malformed-output, long-input, and manual browser tests
+- [x] Improve long job-posting handling
+  - [x] Replace first-6,000-character truncation with paragraph-aware bounded chunks
+  - [x] Extract requirements from every chunk sequentially
+  - [x] Merge and deduplicate requirements across chunks before applying the 20-item cap
+  - [x] Preserve source-type and qualifier metadata during consolidation
+  - [x] Add a bounded total-input safeguard with a visible warning if text is excluded
+  - [x] Add regression tests for important requirements appearing after character 6,000
+  - [x] Show useful progress while multiple Pass 1 chunks are processed
+  - [x] Re-run the long-input production browser test
+- [x] Re-run malformed-output, long-input, and manual browser tests
 - [ ] Document the resulting scoring behavior and known limitations
 - [ ] Add a Cancel analysis button for the current side-panel analysis
   - [ ] Abort the active model prompt/session without clearing the last completed result

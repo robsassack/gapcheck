@@ -393,6 +393,28 @@ function updateCapturedPreview(text) {
 }
 
 /**
+ * Keep multi-section processing and any total-input exclusion visible after
+ * the progress indicator closes.
+ *
+ * @param {Pass1Progress} progress
+ */
+function updateCapturedPass1Meta(progress) {
+  const capturedCount = progress.originalCharCount.toLocaleString();
+  const analyzedCount = progress.analyzedCharCount.toLocaleString();
+
+  if (progress.excludedCharCount > 0) {
+    const excludedCount = progress.excludedCharCount.toLocaleString();
+    capturedMeta.textContent =
+      `${capturedCount} characters captured · ${analyzedCount} analyzed · ${excludedCount} excluded`;
+    return;
+  }
+
+  capturedMeta.textContent = progress.chunkCount > 1
+    ? `${capturedCount} characters analyzed in ${progress.chunkCount} sections`
+    : `${capturedCount} characters captured`;
+}
+
+/**
  * @param {string} message
  */
 function clearCapturedPreview(message) {
@@ -618,6 +640,7 @@ analyzeBtn.addEventListener("click", async () => {
   updateAnalyzeButtonState();
 
   let hasFreshCapture = false;
+  let excludedPass1CharCount = 0;
 
   try {
     showAnalysisProgress("Analyzing selected text", "Reading selection from the active tab...");
@@ -679,7 +702,27 @@ analyzeBtn.addEventListener("click", async () => {
 
     setAnalysisStatus("Extracting requirements...", "info");
     showAnalysisProgress("Analyzing selected text", "Pass 1 of 2: extracting requirements...");
-    const requirements = await gapcheckNano.extractRequirementsFromJobText(capturedJobText);
+    const requirements = await gapcheckNano.extractRequirementsFromJobText(
+      capturedJobText,
+      {
+        onProgress(progress) {
+          excludedPass1CharCount = progress.excludedCharCount;
+          updateCapturedPass1Meta(progress);
+          const stage = progress.stage === "extracting"
+            ? "extracting requirements"
+            : "checking extraction completeness";
+          const section = progress.chunkCount > 1
+            ? `, section ${progress.chunkNumber} of ${progress.chunkCount}`
+            : "";
+          const retry = progress.retrying ? "retrying " : "";
+
+          showAnalysisProgress(
+            "Analyzing selected text",
+            `Pass 1 of 2: ${retry}${stage}${section}...`
+          );
+        },
+      }
+    );
 
     if (requirements.length === 0) {
       throw new Error("No concrete requirements were found in the captured text.");
@@ -699,7 +742,14 @@ analyzeBtn.addEventListener("click", async () => {
 
     panelDebugLog("Analysis result", result);
     renderAnalysisResult(result);
-    setAnalysisStatus(`Analysis complete: ${overallScore}% match.`, "ok");
+    if (excludedPass1CharCount > 0) {
+      setAnalysisStatus(
+        `Analysis complete: ${overallScore}% match. ${excludedPass1CharCount.toLocaleString()} characters exceeded the ${gapcheckNano.pass1TotalJobTextCharLimit.toLocaleString()}-character safety limit and were not analyzed.`,
+        "warn"
+      );
+    } else {
+      setAnalysisStatus(`Analysis complete: ${overallScore}% match.`, "ok");
+    }
     hideAnalysisProgress();
   } catch (err) {
     console.error(err);

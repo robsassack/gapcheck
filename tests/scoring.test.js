@@ -288,6 +288,50 @@ const separatelyGroupedProseSentences =
     ],
     proseSentenceJobText
   );
+const lateLongInputRequirement =
+  "Candidates must hold a commercial pilot license.";
+const longInputJobText = [
+  "About the company",
+  "Northstar builds workflow software for regional organizations. ".repeat(125),
+  "Qualifications",
+  lateLongInputRequirement,
+].join("\n\n");
+const longInputPlan =
+  window.GapcheckNano.testHooks.splitJobTextForPass1(longInputJobText);
+const oversizedInputPlan =
+  window.GapcheckNano.testHooks.splitJobTextForPass1(
+    "Additional company and benefits information. ".repeat(700)
+  );
+const consolidatedLongInputRequirements =
+  window.GapcheckNano.testHooks.consolidatePass1ChunkExtractions(
+    [
+      {
+        eligibilityRequirements: [
+          {
+            requirement: "Five years of software operations experience is required.",
+            qualifier: "required",
+          },
+        ],
+        responsibilities: [],
+      },
+      {
+        eligibilityRequirements: [
+          {
+            requirement: lateLongInputRequirement,
+            qualifier: "required",
+          },
+        ],
+        responsibilities: [],
+      },
+    ],
+    longInputPlan.chunks.join("\n\n")
+  );
+const consolidatedLateRequirement = consolidatedLongInputRequirements.find(
+  (requirement) => {
+    return requirement.text.replace(/[.;]\s*$/, "") ===
+      lateLongInputRequirement.replace(/[.;]\s*$/, "");
+  }
+);
 const pass1GroupingResults = [
   {
     name: "implicit list lines receive source bullet boundaries",
@@ -317,6 +361,49 @@ const pass1GroupingResults = [
       return /production applications/i.test(requirement) &&
         /stakeholder requirements/i.test(requirement);
     }),
+  },
+  {
+    name: "long posting fixture places an important requirement after character 6000",
+    expected: true,
+    actual:
+      longInputJobText.indexOf(lateLongInputRequirement) >
+      window.GapcheckNano.pass1ChunkCharLimit,
+  },
+  {
+    name: "long postings are divided into bounded Pass 1 sections",
+    expected: true,
+    actual:
+      longInputPlan.chunks.length > 1 &&
+      longInputPlan.chunks.every((chunk) => {
+        return chunk.length <= window.GapcheckNano.pass1ChunkCharLimit;
+      }),
+  },
+  {
+    name: "important requirements after the first Pass 1 boundary are retained",
+    expected: true,
+    actual:
+      longInputPlan.excludedCharCount === 0 &&
+      longInputPlan.chunks.some((chunk) => {
+        return chunk.includes(lateLongInputRequirement);
+      }),
+  },
+  {
+    name: "cross-section consolidation preserves late requirement metadata",
+    expected: "required-qualification|required",
+    actual: consolidatedLateRequirement
+      ? `${consolidatedLateRequirement.sourceType}|${consolidatedLateRequirement.qualifier}`
+      : "missing",
+  },
+  {
+    name: "extreme inputs remain bounded and report excluded characters",
+    expected: true,
+    actual:
+      oversizedInputPlan.analyzedCharCount <=
+        window.GapcheckNano.pass1TotalJobTextCharLimit &&
+      oversizedInputPlan.excludedCharCount > 0 &&
+      oversizedInputPlan.chunks.every((chunk) => {
+        return chunk.length <= window.GapcheckNano.pass1ChunkCharLimit;
+      }),
   },
 ].map((result) => ({
   ...result,
@@ -561,6 +648,111 @@ const directPartialPromotionFixture =
       },
     ]
   );
+const productOperationsRequirements = [
+  "Candidates should be able to create adaptable, repeatable processes for roadmap intake, release readiness, customer feedback triage, and post-launch measurement",
+  "They must be able to document decisions, maintain clear owners and next steps, and follow through consistently",
+  "Strong written communication is important because recommendations must be concise and useful to stakeholders who cannot review every raw data source or meeting note",
+  "Strong cross-functional collaboration is required",
+  "Candidates should have at least five years of experience in product operations, business operations, product analytics, program management, consulting, or a similar role supporting software teams",
+  "Identify patterns, surface risks early, and help teams decide where process, tooling, or communication changes will have the greatest impact.",
+  "Coordinate launches across product, engineering, customer-facing teams, and operational stakeholders.",
+  "Experience supporting agile product teams, working with Jira or Linear, maintaining documentation in Confluence or Notion, and coordinating release planning across multiple teams is preferred",
+  "Candidates do not need to be data scientists, but they should be comfortable querying or analyzing data, finding inconsistencies, and explaining what the numbers do and do not prove; SQL experience is strongly preferred; Experience with a BI tool such as Looker, Tableau, Mode, or Power BI is helpful; Strong spreadsheet skills are needed for quick analysis, scenario modeling, and operational tracking; Candidates should be able to combine quantitative findings with qualitative customer feedback instead of relying on a single source",
+  "Prepare launch checklists, track dependencies, confirm enablement materials, monitor early adoption, and coordinate follow-up when customers experience confusion or friction.",
+];
+const productOperationsEvidence = [
+  "PRODUCT OPERATIONS MANAGER",
+  "Brightline Care Software | 2022-2026",
+  "Introduced a structured intake workflow that consolidated requests from sales, support, and implementation, cutting duplicate submissions by 35 percent.",
+  "Built Looker dashboards with SQL to track activation, feature adoption, and workflow completion after releases.",
+  "Paired usage trends with interview notes and support themes to explain why customers abandoned a new referral workflow and recommend corrective changes.",
+  "Owned readiness reviews for monthly releases, bringing engineering, product, design, training, support, and implementation leads together around risks and unresolved dependencies.",
+  "Created reusable Jira templates and Notion playbooks for beta enrollment, launch approvals, customer communications, and post-release follow-up.",
+  "Redesigned the feedback-triage process and established service levels for reviewing, grouping, and routing customer-reported problems.",
+  "Prepared short decision memos for directors that distinguished confirmed findings from assumptions and identified decisions requiring escalation.",
+  "Facilitated quarterly planning and roadmap-review sessions, recording owners, deadlines, tradeoffs, and unresolved questions.",
+  "PRODUCT OPERATIONS ANALYST",
+  "Fieldstone Workflow Systems | 2019-2022",
+  "Coordinated pilot programs and release retrospectives across two agile product teams using Jira and Confluence.",
+  "Wrote implementation summaries and enablement notes for customer-facing teams before major releases.",
+  "Investigated inconsistent data across billing, CRM, and analytics systems and clearly documented the limitations of the resulting analysis.",
+  "Used advanced spreadsheets for capacity planning, cohort comparisons, scenario models, and weekly operational reporting.",
+  "Coordinated corrective action when early usage data and customer reports revealed confusion in a clinical scheduling feature.",
+];
+const productOperationsEvidenceFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    productOperationsRequirements,
+    productOperationsEvidence,
+    [
+      {
+        requirement: productOperationsRequirements[0],
+        status: "partial",
+        matchedBullets: [productOperationsEvidence[6]],
+        severity: "medium",
+      },
+      {
+        requirement: productOperationsRequirements[1],
+        status: "covered",
+        matchedBullets: [productOperationsEvidence[14]],
+        severity: null,
+      },
+      {
+        requirement: productOperationsRequirements[2],
+        status: "covered",
+        matchedBullets: [productOperationsEvidence[4]],
+        severity: null,
+      },
+      {
+        requirement: productOperationsRequirements[3],
+        status: "partial",
+        matchedBullets: [productOperationsEvidence[4]],
+        severity: "medium",
+      },
+      {
+        requirement: productOperationsRequirements[4],
+        status: "partial",
+        matchedBullets: [
+          productOperationsEvidence[6],
+          productOperationsEvidence[1],
+          productOperationsEvidence[11],
+        ],
+        severity: "low",
+      },
+      {
+        requirement: productOperationsRequirements[5],
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+      {
+        requirement: productOperationsRequirements[6],
+        status: "partial",
+        matchedBullets: [productOperationsEvidence[3]],
+        severity: "medium",
+      },
+      {
+        requirement: productOperationsRequirements[7],
+        status: "covered",
+        matchedBullets: [
+          productOperationsEvidence[12],
+          productOperationsEvidence[3],
+        ],
+        severity: null,
+      },
+      {
+        requirement: productOperationsRequirements[8],
+        status: "covered",
+        matchedBullets: [productOperationsEvidence[4]],
+        severity: null,
+      },
+      {
+        requirement: productOperationsRequirements[9],
+        status: "covered",
+        matchedBullets: [productOperationsEvidence[16]],
+        severity: null,
+      },
+    ]
+  );
 
 /**
  * @param {{ status: MatchStatus, matchedBullets: string[], sourceType: string }} match
@@ -797,6 +989,134 @@ const evidenceResults = [
     name: "skills-only Docker evidence remains partial",
     expected: "partial",
     actual: directPartialPromotionFixture[2].status,
+  },
+  {
+    name: "strong product operations process lifecycle is covered across bullets",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[0].status,
+  },
+  {
+    name: "decision documentation combines ownership and follow-through evidence",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[1].status,
+  },
+  {
+    name: "written decision artifacts cover written communication",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[2].status,
+  },
+  {
+    name: "interview notes alone do not remain written communication evidence",
+    expected: false,
+    actual: productOperationsEvidenceFixture[2].matchedBullets.includes(
+      productOperationsEvidence[4]
+    ),
+  },
+  {
+    name: "multi-function readiness reviews cover cross-functional collaboration",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[3].status,
+  },
+  {
+    name: "multiple dated product operations roles cover required duration",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[4].status,
+  },
+  {
+    name: "duration replaces weak citations with software-team role evidence",
+    expected: true,
+    actual:
+      productOperationsEvidenceFixture[4].matchedBullets.includes(
+        productOperationsEvidence[5]
+      ) ||
+      productOperationsEvidenceFixture[4].matchedBullets.includes(
+        productOperationsEvidence[12]
+      ),
+  },
+  {
+    name: "trend risk and recommendation evidence covers pattern-driven decisions",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[5].status,
+  },
+  {
+    name: "functional equivalents cover cross-functional launch audiences",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[6].status,
+  },
+  {
+    name: "irrelevant dashboard citation is removed from agile evidence",
+    expected: false,
+    actual: productOperationsEvidenceFixture[7].matchedBullets.includes(
+      productOperationsEvidence[3]
+    ),
+  },
+  {
+    name: "quantitative and qualitative analysis is covered across complementary bullets",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[8].status,
+  },
+  {
+    name: "compound analytics citations retain SQL BI spreadsheet and inconsistency evidence",
+    expected: true,
+    actual:
+      productOperationsEvidenceFixture[8].matchedBullets.includes(
+        productOperationsEvidence[3]
+      ) &&
+      productOperationsEvidenceFixture[8].matchedBullets.includes(
+        productOperationsEvidence[4]
+      ) &&
+      productOperationsEvidenceFixture[8].matchedBullets.includes(
+        productOperationsEvidence[14]
+      ) &&
+      productOperationsEvidenceFixture[8].matchedBullets.includes(
+        productOperationsEvidence[15]
+      ),
+  },
+  {
+    name: "launch lifecycle is covered only after complementary evidence is assembled",
+    expected: "covered",
+    actual: productOperationsEvidenceFixture[9].status,
+  },
+  {
+    name: "launch lifecycle retains explicit enablement artifact evidence",
+    expected: true,
+    actual: productOperationsEvidenceFixture[9].matchedBullets.includes(
+      productOperationsEvidence[13]
+    ),
+  },
+  {
+    name: "corrective action alone does not cover the launch lifecycle",
+    expected: false,
+    actual: window.GapcheckNano.testHooks.pass2EvidenceDirectlyCoversRequirement(
+      productOperationsRequirements[9],
+      [productOperationsEvidence[16]]
+    ),
+  },
+  {
+    name: "incomplete process lifecycle evidence is not overpromoted",
+    expected: false,
+    actual: window.GapcheckNano.testHooks.pass2EvidenceDirectlyCoversRequirement(
+      productOperationsRequirements[0],
+      [productOperationsEvidence[6]]
+    ),
+  },
+  {
+    name: "unrelated customer coordination is not cross-functional collaboration",
+    expected: false,
+    actual: window.GapcheckNano.testHooks.pass2EvidenceDirectlyCoversRequirement(
+      productOperationsRequirements[3],
+      [
+        "Communicated with front-of-house staff about allergens, sell-out timing, product descriptions, and customer pickup details.",
+      ]
+    ),
+  },
+  {
+    name: "customer-facing launch evidence alone does not cover every audience",
+    expected: false,
+    actual: window.GapcheckNano.testHooks.pass2EvidenceDirectlyCoversRequirement(
+      productOperationsRequirements[6],
+      [productOperationsEvidence[13]]
+    ),
   },
 ].map((result) => {
   return {
