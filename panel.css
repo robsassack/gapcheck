@@ -347,6 +347,13 @@ body {
   margin: 10px 0 0;
 }
 
+.coverage-summary {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+
 .match-section {
   background: var(--surface);
   border: 1px solid var(--border);

@@ -48,6 +48,81 @@ const results = [
   ),
 ];
 
+const summaryResults = [
+  {
+    name: "summary names covered strengths and prioritizes high-severity gaps",
+    expected:
+      "Clear alignment: Build TypeScript applications; Work with PostgreSQL. Main gaps: Use a modern testing framework; Deploy to cloud infrastructure.",
+    actual: window.GapcheckNano.testHooks.createMatchSummary([
+      {
+        requirement: "Build TypeScript applications.",
+        status: "covered",
+        matchedBullets: ["Built TypeScript applications."],
+        severity: null,
+        sourceType: "required-qualification",
+        qualifier: "required",
+      },
+      {
+        requirement: "Deploy to cloud infrastructure.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+        sourceType: "core-responsibility",
+        qualifier: null,
+      },
+      {
+        requirement: "Use a modern testing framework.",
+        status: "gap",
+        matchedBullets: [],
+        severity: "high",
+        sourceType: "required-qualification",
+        qualifier: "required",
+      },
+      {
+        requirement: "Work with PostgreSQL.",
+        status: "covered",
+        matchedBullets: ["Wrote PostgreSQL queries."],
+        severity: null,
+        sourceType: "required-qualification",
+        qualifier: "required",
+      },
+    ]),
+  },
+  {
+    name: "summary explains an all-partial result without claiming full alignment",
+    expected:
+      "The resume shows relevant experience, but the evidence is only partial. Areas needing clearer evidence: Build accessible interfaces.",
+    actual: window.GapcheckNano.testHooks.createMatchSummary([
+      {
+        requirement: "Build accessible interfaces.",
+        status: "partial",
+        matchedBullets: ["Built responsive interfaces."],
+        severity: "medium",
+        sourceType: "core-responsibility",
+        qualifier: null,
+      },
+    ]),
+  },
+  {
+    name: "summary distinguishes unscored constraints from resume gaps",
+    expected:
+      "Work or application constraints were identified, but no resume-match requirements were scored.",
+    actual: window.GapcheckNano.testHooks.createMatchSummary([
+      {
+        requirement: "Work from the office two days per week.",
+        status: "unknown",
+        matchedBullets: [],
+        severity: null,
+        sourceType: "work-application-constraint",
+        qualifier: "required",
+      },
+    ]),
+  },
+].map((result) => ({
+  ...result,
+  passed: result.actual === result.expected,
+}));
+
 const sourceTypeResults = [
   {
     name: "work authorization is a constraint",
@@ -1127,6 +1202,7 @@ const evidenceResults = [
 
 const allResults = [
   ...results,
+  ...summaryResults,
   ...sourceTypeResults,
   ...requirementMetadataResults,
   ...pass1GroupingResults,

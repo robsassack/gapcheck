@@ -24,6 +24,7 @@ const scoreResult = /** @type {HTMLElement} */ (document.getElementById("scoreRe
 const overallScoreValue = /** @type {HTMLSpanElement} */ (document.getElementById("overallScoreValue"));
 const scoreContext = /** @type {HTMLParagraphElement} */ (document.getElementById("scoreContext"));
 const summaryText = /** @type {HTMLParagraphElement} */ (document.getElementById("summaryText"));
+const coverageSummary = /** @type {HTMLParagraphElement} */ (document.getElementById("coverageSummary"));
 const coveredSection = /** @type {HTMLElement} */ (document.getElementById("coveredSection"));
 const partialSection = /** @type {HTMLElement} */ (document.getElementById("partialSection"));
 const gapSection = /** @type {HTMLElement} */ (document.getElementById("gapSection"));
@@ -116,6 +117,15 @@ function getScoreContext(score) {
   }
 
   return "Needs work";
+}
+
+/**
+ * @param {number} count
+ * @param {string} singular
+ * @param {string} plural
+ */
+function formatMatchCount(count, singular, plural) {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 /**
@@ -287,6 +297,11 @@ function renderAnalysisResult(result) {
   scoreResult.dataset.scoreLevel = getScoreLevel(result.overallScore);
   scoreContext.textContent = getScoreContext(result.overallScore);
   summaryText.textContent = result.summary;
+  coverageSummary.textContent = [
+    formatMatchCount(coveredMatches.length, "covered", "covered"),
+    formatMatchCount(partialMatches.length, "partial", "partial"),
+    formatMatchCount(gapMatches.length, "gap", "gaps"),
+  ].join(" · ");
   animateScore(result.overallScore);
 
   coveredCount.textContent = String(coveredMatches.length);

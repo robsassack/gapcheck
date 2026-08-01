@@ -4883,18 +4883,66 @@ async function analyzeRequirementsWithResumeBullets(
       qualifier: requirementMetadataItem.qualifier,
     };
   });
-  const statusCounts = auditedMatches.reduce(
-    (counts, match) => {
-      counts[match.status] += 1;
-      return counts;
-    },
-    { covered: 0, partial: 0, gap: 0, unknown: 0 }
-  );
-
   return {
     matches: auditedMatches,
-    summary: `Resume evidence covers ${statusCounts.covered} requirements, partially supports ${statusCounts.partial}, and leaves ${statusCounts.gap} gaps.${statusCounts.unknown > 0 ? ` ${statusCounts.unknown} work or application constraints are not scored because the resume does not establish them.` : ""}`,
+    summary: createMatchSummary(auditedMatches),
   };
+}
+
+/**
+ * Keep the score explanation grounded in finalized classifications. This
+ * avoids another model call and ensures the prose cannot introduce evidence
+ * that is absent from the detailed results.
+ *
+ * @param {MatchResult[]} matches
+ * @returns {string}
+ */
+function createMatchSummary(matches) {
+  const scoredMatches = matches.filter((match) => match.status !== "unknown");
+
+  if (scoredMatches.length === 0) {
+    return "Work or application constraints were identified, but no resume-match requirements were scored.";
+  }
+
+  const covered = matches.filter((match) => match.status === "covered");
+  const partial = matches.filter((match) => match.status === "partial");
+  const gaps = matches
+    .filter((match) => match.status === "gap")
+    .sort((first, second) => {
+      const severityRank = { high: 0, medium: 1, low: 2 };
+      return severityRank[first.severity || "medium"] -
+        severityRank[second.severity || "medium"];
+    });
+
+  /** @param {MatchResult[]} items */
+  const listRequirements = (items) => {
+    return items
+      .slice(0, 2)
+      .map((match) => match.requirement.trim().replace(/[.;:,]\s*$/, ""))
+      .join("; ");
+  };
+
+  const sentences = [];
+
+  if (covered.length > 0) {
+    sentences.push(`Clear alignment: ${listRequirements(covered)}.`);
+  } else if (partial.length > 0 && gaps.length === 0) {
+    sentences.push("The resume shows relevant experience, but the evidence is only partial.");
+  } else if (partial.length > 0) {
+    sentences.push(`Some relevant evidence: ${listRequirements(partial)}.`);
+  } else {
+    sentences.push("The resume does not directly cover the scored requirements.");
+  }
+
+  if (gaps.length > 0) {
+    sentences.push(`Main gaps: ${listRequirements(gaps)}.`);
+  } else if (partial.length > 0) {
+    sentences.push(`Areas needing clearer evidence: ${listRequirements(partial)}.`);
+  } else {
+    sentences.push("No scored requirements were left unsupported.");
+  }
+
+  return sentences.join(" ");
 }
 
 /**
@@ -4952,6 +5000,7 @@ function computeOverallScore(matches) {
     mergeRelatedPass1RequirementsToLimit,
     splitJobTextForPass1,
     consolidatePass1ChunkExtractions,
+    createMatchSummary,
     isLanguageModelRuntimeError,
     withModelOutputRetry,
   }),
