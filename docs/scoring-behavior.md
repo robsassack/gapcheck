@@ -124,8 +124,6 @@ runs.
   not included, and poorly structured pasted text can reduce evidence quality.
 - Job text must be selected manually. GapCheck does not currently capture the
   full page automatically.
-- An active analysis cannot currently be cancelled. Cancellation is the next
-  planned Phase 6 implementation task.
 - Analysis requires a supported desktop Chrome installation with the built-in
   model available. Model downloads, runtime backoff, and device performance can
   affect availability and completion time.

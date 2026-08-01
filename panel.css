@@ -238,6 +238,12 @@ body {
   font-size: 12px;
 }
 
+.progress-estimate {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

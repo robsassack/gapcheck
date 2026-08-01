@@ -49,8 +49,9 @@ loading or reloading the unpacked extension:
 3. Open the resulting URL in Chrome, select the benchmark families, resume
    cases, test mode, and repetition count, and click Run benchmarks.
 
-Each Nano analysis can take one to two minutes. Keep the runner page open and
-the computer awake until the queue finishes. See the
+Each model pass can take one to two minutes, so a full two-pass analysis can
+take two to four minutes. Keep the runner page open and the computer awake
+until the queue finishes. See the
 [benchmark fixture guide](tests/fixtures/README.md) for the fixture structure,
 expected behavior, cancellation behavior, and report details.
 

@@ -53,6 +53,8 @@ let hasRenderedAnalysis = false;
 let nanoRetryTimer = 0;
 
 const NANO_AVAILABILITY_RETRY_MS = 15000;
+const PAGE_ACCESS_ERROR_MESSAGE =
+  "GapCheck couldn't access this page. Try a normal webpage and make sure GapCheck's site access is allowed in Chrome. Internal and extension pages can't be analyzed.";
 
 /**
  * @param {string} label
@@ -392,10 +394,19 @@ async function captureSelectedTextFromActiveTab() {
     throw new Error("No active tab found.");
   }
 
-  const injectionResults = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => window.getSelection()?.toString() || "",
-  });
+  let injectionResults;
+
+  try {
+    injectionResults = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => window.getSelection()?.toString() || "",
+    });
+  } catch (error) {
+    panelDebugLog("Selection capture unavailable", error);
+    const pageAccessError = new Error(PAGE_ACCESS_ERROR_MESSAGE);
+    pageAccessError.name = "GapcheckPageAccessError";
+    throw pageAccessError;
+  }
   const result = injectionResults[0]?.result;
 
   return (result || "").trim();
@@ -822,6 +833,8 @@ analyzeBtn.addEventListener("click", async () => {
     const message = err instanceof Error ? err.message : "Analysis failed.";
     const isModelRuntimeFailure =
       err instanceof Error && err.name === "GapcheckModelRuntimeError";
+    const isPageAccessFailure =
+      err instanceof Error && err.name === "GapcheckPageAccessError";
 
     if (isModelRuntimeFailure) {
       showNanoRuntimeFailure(message);
@@ -832,13 +845,16 @@ analyzeBtn.addEventListener("click", async () => {
         isModelRuntimeFailure ? "On-device model could not start" : "Analysis failed",
         message,
       );
+    } else if (isPageAccessFailure) {
+      clearCapturedPreview(message);
+      showEmptyState("Page unavailable", message);
     } else if (message !== "Highlight the job description on the page first.") {
-      clearCapturedPreview(
-        "Couldn't read the page selection. Try a normal webpage; Chrome blocks capture on internal and extension pages.",
-      );
+      const selectionUnavailableMessage =
+        "Couldn't read the page selection. Try a normal webpage; Chrome blocks capture on internal and extension pages.";
+      clearCapturedPreview(selectionUnavailableMessage);
       showEmptyState(
         "Selection unavailable",
-        "Try a normal webpage; Chrome blocks capture on internal and extension pages.",
+        selectionUnavailableMessage,
       );
     }
     setAnalysisStatus(message, "error");

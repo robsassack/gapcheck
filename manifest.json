@@ -3,7 +3,7 @@
   "name": "GapCheck",
   "version": "1.0.0",
   "description": "Compare job requirements against your resume using private, on-device AI.",
-  "permissions": ["sidePanel", "storage", "activeTab", "scripting"],
+  "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "GapCheck",
