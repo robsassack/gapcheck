@@ -288,6 +288,10 @@ job-specific normalization would risk reducing generality.
 
 Build a repeatable benchmark set, separate Pass 1 extraction issues from Pass 2 classification issues, and improve evidence selection only where testing shows systematic errors. Evaluate severity-weighted scoring after classification quality is stable; adopt it only if it improves the benchmark results without increasing run-to-run instability.
 
+The implemented scoring contract, final calibration interpretation, long-input
+behavior, and accepted limitations are recorded in
+[`scoring-behavior.md`](scoring-behavior.md).
+
 ### Phase 7 — Saved Analysis History
 
 Store successful analysis records locally using a versioned, bounded schema. Let users reopen, delete, or clear saved analyses while keeping malformed or older records from breaking the side panel.

@@ -68,8 +68,13 @@ Neither your resume nor your analysis leaves your device. GapCheck stores the sa
 
 - Match results are AI-generated and can vary between runs.
 - The score is a directional comparison, not a hiring recommendation or guarantee.
+- Selected text is processed in bounded sections; text beyond 18,000 characters is excluded with a visible warning.
 - Job text must be selected manually; GapCheck does not automatically scrape the page.
 - Resumes are pasted as text; PDF resume parsing is not included in version 1.0.
+
+See [Scoring Behavior and Known Limitations](docs/scoring-behavior.md) for the
+production formula, calibration decision, long-input behavior, and detailed
+limitations established during Phase 6.
 
 ## Version
 

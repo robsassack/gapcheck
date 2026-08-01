@@ -218,7 +218,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Show useful progress while multiple Pass 1 chunks are processed
   - [x] Re-run the long-input production browser test
 - [x] Re-run malformed-output, long-input, and manual browser tests
-- [ ] Document the resulting scoring behavior and known limitations
+- [x] Document the resulting scoring behavior and known limitations
 - [ ] Add a Cancel analysis button for the current side-panel analysis
   - [ ] Abort the active model prompt/session without clearing the last completed result
   - [ ] Restore the analyze controls and show a clear cancelled state
