@@ -10,12 +10,30 @@ modelOutputRetryTestWindow.GapcheckModelOutputRetryTestPromise = (async () => {
    *     testHooks: {
    *       withModelOutputRetry: <T>(
    *         operation: (isRetry: boolean) => Promise<T>,
+   *         label: string,
+   *         options?: { retryOutputLimit?: boolean }
+   *       ) => Promise<T>,
+   *       runAdaptiveModelBatches: <TItem, TResult>(
+   *         items: TItem[],
+   *         operation: (batch: TItem[]) => Promise<TResult[]>,
    *         label: string
-   *       ) => Promise<T>
+   *       ) => Promise<TResult[]>
    *     }
    *   }
    * }} */ (/** @type {unknown} */ (window)).GapcheckNano.testHooks
     .withModelOutputRetry;
+  const runAdaptiveModelBatches = (/** @type {{
+   *   GapcheckNano: {
+   *     testHooks: {
+   *       runAdaptiveModelBatches: <TItem, TResult>(
+   *         items: TItem[],
+   *         operation: (batch: TItem[]) => Promise<TResult[]>,
+   *         label: string
+   *       ) => Promise<TResult[]>
+   *     }
+   *   }
+   * }} */ (/** @type {unknown} */ (window))).GapcheckNano.testHooks
+    .runAdaptiveModelBatches;
 
   /** @returns {Error} */
   function createMalformedOutputError() {
@@ -61,6 +79,36 @@ modelOutputRetryTestWindow.GapcheckModelOutputRetryTestPromise = (async () => {
     preservedRuntimeError = error === runtimeError;
   }
 
+  const outputLimitError = new Error(
+    "The response exceeded output limits and was truncated."
+  );
+  let outputLimitCalls = 0;
+  let preservedOutputLimitError = false;
+  try {
+    await retry(async () => {
+      outputLimitCalls += 1;
+      throw outputLimitError;
+    }, "Output limit test", { retryOutputLimit: false });
+  } catch (error) {
+    preservedOutputLimitError = error === outputLimitError;
+  }
+
+  /** @type {number[]} */
+  const adaptiveBatchSizes = [];
+  const adaptiveResult = await runAdaptiveModelBatches(
+    [1, 2, 3, 4],
+    async (batch) => {
+      adaptiveBatchSizes.push(batch.length);
+
+      if (batch.length > 2) {
+        throw outputLimitError;
+      }
+
+      return batch.map((item) => item * 10);
+    },
+    "Adaptive output limit test"
+  );
+
   const cases = [
     {
       name: "malformed output is retried once and can recover",
@@ -80,6 +128,16 @@ modelOutputRetryTestWindow.GapcheckModelOutputRetryTestPromise = (async () => {
       name: "ordinary runtime errors are not retried",
       expected: true,
       actual: runtimeFailureCalls === 1 && preservedRuntimeError,
+    },
+    {
+      name: "known output-limit failures can bypass an identical retry",
+      expected: true,
+      actual: outputLimitCalls === 1 && preservedOutputLimitError,
+    },
+    {
+      name: "output-limit failures fall back to ordered smaller batches",
+      expected: "4,2,2|10,20,30,40",
+      actual: `${adaptiveBatchSizes.join(",")}|${adaptiveResult.join(",")}`,
     },
   ].map((testCase) => ({
     ...testCase,

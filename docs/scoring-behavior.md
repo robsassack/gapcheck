@@ -58,9 +58,11 @@ several fragments.
 ## Resume evidence analysis
 
 Pass 2 handles scored requirements in bounded batches and performs one
-consolidated evidence audit. Model-facing resume evidence uses code-owned IDs;
-returned IDs must exist in the supplied resume and are mapped back to the
-original bullet text only after validation.
+consolidated evidence audit. Because practical on-device output limits vary by
+model build and hardware, an output-limit failure is retried as successively
+smaller batches while preserving requirement order. Model-facing resume
+evidence uses code-owned IDs; returned IDs must exist in the supplied resume
+and are mapped back to the original bullet text only after validation.
 
 Code-owned normalization removes context-only or irrelevant citations,
 preserves dated role context for duration requirements, allows a small set of
@@ -68,10 +70,11 @@ complementary bullets to prove compound requirements, and prevents partial
 evidence from being promoted to full coverage. Fabricated or unrecognized
 evidence remains invalid.
 
-Malformed model output is retried once. A second malformed response produces a
-clear error rather than a partial or silently repaired analysis. Ordinary
-model-runtime failures are not treated as malformed output and provide Chrome
-restart and diagnostics guidance instead.
+Malformed model output is retried once. Known truncation failures skip the
+identical retry and use the smaller-batch fallback instead. A malformed
+single-item response still produces a clear error rather than a partial or
+silently repaired analysis. Ordinary model-runtime failures are not treated as
+malformed output and provide Chrome restart and diagnostics guidance instead.
 
 ## Calibration interpretation
 

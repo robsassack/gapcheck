@@ -3,8 +3,8 @@
 const PASS_1_MAX_REQUIREMENTS = 20;
 const PASS_1_JOB_TEXT_CHUNK_CHAR_LIMIT = 6000;
 const PASS_1_TOTAL_JOB_TEXT_CHAR_LIMIT = 18000;
-const PASS_2_REQUIREMENT_BATCH_SIZE = 6;
-const PASS_2_CONSOLIDATED_AUDIT_MAX_REQUIREMENTS = 6;
+const PASS_2_REQUIREMENT_BATCH_SIZE = 4;
+const PASS_2_CONSOLIDATED_AUDIT_MAX_REQUIREMENTS = 4;
 const GAPCHECK_DEBUG_STORAGE_KEY = "gapcheckDebug";
 const MATCH_STATUSES = Object.freeze(["covered", "partial", "gap"]);
 const MATCH_SEVERITIES = Object.freeze(["low", "medium", "high"]);
@@ -378,7 +378,8 @@ async function createLanguageModelSession(languageModel, options) {
  *       splitJobTextForPass1: typeof splitJobTextForPass1,
  *       consolidatePass1ChunkExtractions: typeof consolidatePass1ChunkExtractions,
  *       isLanguageModelRuntimeError: typeof isLanguageModelRuntimeError,
- *       withModelOutputRetry: typeof withModelOutputRetry
+ *       withModelOutputRetry: typeof withModelOutputRetry,
+ *       runAdaptiveModelBatches: typeof runAdaptiveModelBatches
  *     },
  *     enableDebug: typeof enableDebug,
  *     disableDebug: typeof disableDebug,
@@ -497,16 +498,40 @@ function isModelOutputError(error) {
 }
 
 /**
+ * Output quotas vary between on-device model versions and hardware. Repeating
+ * an already-truncated request with the same shape cannot make it fit.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isModelOutputLimitError(error) {
+  const errorMessage =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof /** @type {{ message?: unknown }} */ (error).message === "string"
+      ? /** @type {{ message: string }} */ (error).message
+      : String(error || "");
+
+  return /\b(?:output|response)\b.*\b(?:limit|truncat)/i.test(errorMessage);
+}
+
+/**
  * @template T
  * @param {(isRetry: boolean) => Promise<T>} operation
  * @param {string} label
+ * @param {{ retryOutputLimit?: boolean }} [options]
  * @returns {Promise<T>}
  */
-async function withModelOutputRetry(operation, label) {
+async function withModelOutputRetry(operation, label, options = {}) {
   try {
     return await operation(false);
   } catch (err) {
     if (!isModelOutputError(err)) {
+      throw err;
+    }
+
+    if (options.retryOutputLimit === false && isModelOutputLimitError(err)) {
       throw err;
     }
 
@@ -524,6 +549,50 @@ async function withModelOutputRetry(operation, label) {
     }
 
     throw err;
+  }
+}
+
+/**
+ * Retry a model-output failure with smaller requests while preserving order.
+ * A single-item request is already the smallest safe fallback, so its original
+ * error is allowed through with the useful model detail intact.
+ *
+ * @template TItem, TResult
+ * @param {TItem[]} items
+ * @param {(batch: TItem[]) => Promise<TResult[]>} operation
+ * @param {string} label
+ * @returns {Promise<TResult[]>}
+ */
+async function runAdaptiveModelBatches(items, operation, label) {
+  try {
+    return await operation(items);
+  } catch (error) {
+    if (!isModelOutputError(error) || items.length <= 1) {
+      throw error;
+    }
+
+    const splitIndex = Math.ceil(items.length / 2);
+    const leftItems = items.slice(0, splitIndex);
+    const rightItems = items.slice(splitIndex);
+
+    debugLog(`${label} output did not fit; splitting batch`, {
+      originalSize: items.length,
+      smallerSizes: [leftItems.length, rightItems.length],
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    const leftResults = await runAdaptiveModelBatches(
+      leftItems,
+      operation,
+      label
+    );
+    const rightResults = await runAdaptiveModelBatches(
+      rightItems,
+      operation,
+      label
+    );
+
+    return [...leftResults, ...rightResults];
   }
 }
 
@@ -4371,7 +4440,7 @@ async function analyzeRequirementBatchWithResumeBullets(
         session.destroy();
       }
     }
-  }, "Pass 2");
+  }, "Pass 2", { retryOutputLimit: false });
 }
 
 /**
@@ -4841,13 +4910,21 @@ async function analyzeRequirementsWithResumeBullets(
       batchStart,
       batchStart + PASS_2_REQUIREMENT_BATCH_SIZE
     );
-    const batchAnalysis = await analyzeRequirementBatchWithResumeBullets(
+    const batchMatches = await runAdaptiveModelBatches(
       batchRequirements,
-      normalizedResumeBullets,
-      options
+      async (smallerBatchRequirements) => {
+        const batchAnalysis = await analyzeRequirementBatchWithResumeBullets(
+          smallerBatchRequirements,
+          normalizedResumeBullets,
+          options
+        );
+
+        return batchAnalysis.matches;
+      },
+      "Pass 2"
     );
 
-    matches.push(...batchAnalysis.matches);
+    matches.push(...batchMatches);
   }
 
   const scoredMatches = scoredRequirements.length > 0
@@ -5003,6 +5080,7 @@ function computeOverallScore(matches) {
     createMatchSummary,
     isLanguageModelRuntimeError,
     withModelOutputRetry,
+    runAdaptiveModelBatches,
   }),
   enableDebug,
   disableDebug,
