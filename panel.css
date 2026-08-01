@@ -132,6 +132,38 @@ body {
   cursor: not-allowed;
 }
 
+.analysis-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.analysis-actions .primary-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.cancel-btn {
+  flex: 0 0 auto;
+  background: var(--surface);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-btn:hover {
+  background: var(--danger-soft);
+}
+
+.cancel-btn:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+
 .capture-hint {
   margin-top: 6px;
 }

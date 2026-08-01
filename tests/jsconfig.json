@@ -10,6 +10,7 @@
   "files": [
     "benchmark-scoring.js",
     "benchmark-runner.js",
-    "model-output-retry.test.js"
+    "model-output-retry.test.js",
+    "analysis-cancellation.test.js"
   ]
 }

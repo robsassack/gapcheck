@@ -219,9 +219,9 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Re-run the long-input production browser test
 - [x] Re-run malformed-output, long-input, and manual browser tests
 - [x] Document the resulting scoring behavior and known limitations
-- [ ] Add a Cancel analysis button for the current side-panel analysis
-  - [ ] Abort the active model prompt/session without clearing the last completed result
-  - [ ] Restore the analyze controls and show a clear cancelled state
+- [x] Add a Cancel analysis button for the current side-panel analysis
+  - [x] Abort the active model prompt/session without clearing the last completed result
+  - [x] Restore the analyze controls and show a clear cancelled state
 
 ---
 

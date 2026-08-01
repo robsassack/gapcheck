@@ -10,6 +10,7 @@ const nanoStatusHint = /** @type {HTMLParagraphElement} */ (document.getElementB
 const retryNanoBtn = /** @type {HTMLButtonElement} */ (document.getElementById("retryNanoBtn"));
 
 const analyzeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("analyzeBtn"));
+const cancelAnalysisBtn = /** @type {HTMLButtonElement} */ (document.getElementById("cancelAnalysisBtn"));
 const captureHint = /** @type {HTMLParagraphElement} */ (document.getElementById("captureHint"));
 const analysisStatus = /** @type {HTMLParagraphElement} */ (document.getElementById("analysisStatus"));
 const analysisProgress = /** @type {HTMLDivElement} */ (document.getElementById("analysisProgress"));
@@ -44,6 +45,8 @@ let capturedJobText = "";
 let savedResumeBulletCount = 0;
 let nanoAvailability = "unknown";
 let isAnalyzing = false;
+/** @type {AbortController | null} */
+let activeAnalysisController = null;
 let scoreAnimationFrame = 0;
 let hasRenderedAnalysis = false;
 let nanoRetryTimer = 0;
@@ -309,6 +312,8 @@ function updateAnalyzeButtonState(preserveStatus = false) {
     nanoAvailability === "downloading";
 
   analyzeBtn.disabled = isAnalyzing || !hasResume || !modelCanRun;
+  cancelAnalysisBtn.hidden = !isAnalyzing;
+  cancelAnalysisBtn.disabled = !isAnalyzing || activeAnalysisController?.signal.aborted === true;
 
   if (isAnalyzing) {
     analyzeBtn.textContent = "Analyzing...";
@@ -636,6 +641,17 @@ analyzeBtn.addEventListener("click", async () => {
   }
 
   isAnalyzing = true;
+  const analysisController = new AbortController();
+  activeAnalysisController = analysisController;
+  const { signal } = analysisController;
+  const previousResultCapture = hasRenderedAnalysis
+    ? {
+        text: capturedJobText,
+        meta: capturedMeta.textContent,
+        preview: capturedPreview.textContent,
+        detailsOpen: capturedDetails.open,
+      }
+    : null;
   captureHint.hidden = true;
   updateAnalyzeButtonState();
 
@@ -646,6 +662,7 @@ analyzeBtn.addEventListener("click", async () => {
     showAnalysisProgress("Analyzing selected text", "Reading selection from the active tab...");
     setAnalysisStatus("Reading selected job text...", "info");
     const selectedText = await captureSelectedTextFromActiveTab();
+    signal.throwIfAborted();
 
     if (!selectedText) {
       clearCapturedPreview("No text was selected on the page.");
@@ -657,10 +674,12 @@ analyzeBtn.addEventListener("click", async () => {
     }
 
     updateCapturedPreview(selectedText);
-    showEmptyState(
-      "Analysis running",
-      "Results will appear here when the on-device model finishes.",
-    );
+    if (!hasRenderedAnalysis) {
+      showEmptyState(
+        "Analysis running",
+        "Results will appear here when the on-device model finishes.",
+      );
+    }
     hasFreshCapture = true;
     panelDebugLog("Captured selected text", {
       charCount: selectedText.length,
@@ -670,6 +689,7 @@ analyzeBtn.addEventListener("click", async () => {
     setAnalysisStatus("Checking on-device model...", "info");
     showAnalysisProgress("Analyzing selected text", "Checking on-device model...");
     await checkNanoAvailability();
+    signal.throwIfAborted();
 
     if (
       nanoAvailability !== "available" &&
@@ -690,11 +710,16 @@ analyzeBtn.addEventListener("click", async () => {
     }
 
     await gapcheckNano.ensureLanguageModelReady((progressPercent) => {
+      if (signal.aborted) {
+        return;
+      }
       const roundedProgress = Math.round(progressPercent);
       showNanoDownloadProgress(progressPercent);
       showAnalysisProgress("Preparing on-device model", `Downloading model: ${roundedProgress}%`);
-    });
+    }, { signal });
+    signal.throwIfAborted();
     await checkNanoAvailability();
+    signal.throwIfAborted();
 
     if (nanoAvailability !== "available") {
       throw new Error("The on-device model is not available yet.");
@@ -705,7 +730,11 @@ analyzeBtn.addEventListener("click", async () => {
     const requirements = await gapcheckNano.extractRequirementsFromJobText(
       capturedJobText,
       {
+        signal,
         onProgress(progress) {
+          if (signal.aborted) {
+            return;
+          }
           excludedPass1CharCount = progress.excludedCharCount;
           updateCapturedPass1Meta(progress);
           const stage = progress.stage === "extracting"
@@ -730,7 +759,10 @@ analyzeBtn.addEventListener("click", async () => {
 
     setAnalysisStatus("Comparing requirements to resume...", "info");
     showAnalysisProgress("Analyzing selected text", "Pass 2 of 2: comparing against your resume...");
-    const analysis = await gapcheckNano.analyzeRequirementsWithSavedResume(requirements);
+    const analysis = await gapcheckNano.analyzeRequirementsWithSavedResume(
+      requirements,
+      { signal }
+    );
     const overallScore = gapcheckNano.computeOverallScore(analysis.matches);
 
     const result = {
@@ -752,6 +784,25 @@ analyzeBtn.addEventListener("click", async () => {
     }
     hideAnalysisProgress();
   } catch (err) {
+    const wasCancelled = signal.aborted;
+    if (wasCancelled) {
+      if (previousResultCapture) {
+        capturedJobText = previousResultCapture.text;
+        capturedMeta.textContent = previousResultCapture.meta;
+        capturedPreview.textContent = previousResultCapture.preview;
+        capturedDetails.open = previousResultCapture.detailsOpen;
+      }
+      setAnalysisStatus("Analysis cancelled. Ready to analyze again.", "warn");
+      hideAnalysisProgress();
+      if (!hasRenderedAnalysis) {
+        showEmptyState(
+          "Analysis cancelled",
+          "No new result was saved. Select job text and analyze again when you’re ready.",
+        );
+      }
+      return;
+    }
+
     console.error(err);
     const message = err instanceof Error ? err.message : "Analysis failed.";
     const isModelRuntimeFailure =
@@ -778,10 +829,25 @@ analyzeBtn.addEventListener("click", async () => {
     setAnalysisStatus(message, "error");
     hideAnalysisProgress();
   } finally {
+    if (activeAnalysisController === analysisController) {
+      activeAnalysisController = null;
+    }
     isAnalyzing = false;
     captureHint.hidden = false;
     updateAnalyzeButtonState(true);
   }
+});
+
+cancelAnalysisBtn.addEventListener("click", () => {
+  if (!activeAnalysisController || activeAnalysisController.signal.aborted) {
+    return;
+  }
+
+  cancelAnalysisBtn.disabled = true;
+  setAnalysisStatus("Cancelling analysis...", "warn");
+  activeAnalysisController.abort(
+    new DOMException("The analysis was cancelled.", "AbortError")
+  );
 });
 
 // --- Init -------------------------------------------------------------------

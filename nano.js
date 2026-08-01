@@ -196,6 +196,12 @@ const PASS_1_OTHER_SECTION_HEADING_PATTERN =
 /**
  * @typedef {object} Pass1ExtractionOptions
  * @property {(progress: Pass1Progress) => void} [onProgress]
+ * @property {AbortSignal} [signal]
+ */
+
+/**
+ * @typedef {object} ModelRunOptions
+ * @property {AbortSignal} [signal]
  */
 
 /**
@@ -257,7 +263,7 @@ const PASS_1_OTHER_SECTION_HEADING_PATTERN =
 
 /**
  * @typedef {object} LanguageModelSession
- * @property {(input: string, options?: { responseConstraint?: object }) => Promise<string>} prompt
+ * @property {(input: string, options?: { responseConstraint?: object, signal?: AbortSignal }) => Promise<string>} prompt
  * @property {() => void} destroy
  */
 
@@ -265,6 +271,7 @@ const PASS_1_OTHER_SECTION_HEADING_PATTERN =
  * @typedef {object} LanguageModelCreateOptions
  * @property {{ role: "system" | "user" | "assistant", content: string }[]} [initialPrompts]
  * @property {(monitor: EventTarget) => void} [monitor]
+ * @property {AbortSignal} [signal]
  */
 
 /**
@@ -280,6 +287,24 @@ function getLanguageModelGlobal() {
   return /** @type {{ LanguageModel?: LanguageModelGlobal }} */ (
     /** @type {unknown} */ (globalThis)
   ).LanguageModel;
+}
+
+/**
+ * Stop between sessions as well as during a prompt. Passing the same signal to
+ * create() and prompt() lets Chrome stop whichever model operation is active.
+ *
+ * @param {AbortSignal | undefined} signal
+ */
+function throwIfAnalysisAborted(signal) {
+  if (!signal?.aborted) {
+    return;
+  }
+
+  if (signal.reason !== undefined) {
+    throw signal.reason;
+  }
+
+  throw new DOMException("The analysis was cancelled.", "AbortError");
 }
 
 /**
@@ -533,9 +558,11 @@ function normalizeDownloadProgress(loaded) {
 
 /**
  * @param {(progressPercent: number) => void} [onDownloadProgress]
+ * @param {ModelRunOptions} [options]
  * @returns {Promise<void>}
  */
-async function ensureLanguageModelReady(onDownloadProgress) {
+async function ensureLanguageModelReady(onDownloadProgress, options = {}) {
+  throwIfAnalysisAborted(options.signal);
   const languageModel = getLanguageModelGlobal();
 
   if (!languageModel) {
@@ -543,6 +570,7 @@ async function ensureLanguageModelReady(onDownloadProgress) {
   }
 
   const availability = await languageModel.availability();
+  throwIfAnalysisAborted(options.signal);
 
   if (availability === "unavailable") {
     throw new Error("This device or Chrome build does not support the on-device model.");
@@ -553,12 +581,16 @@ async function ensureLanguageModelReady(onDownloadProgress) {
 
   try {
     session = await createLanguageModelSession(languageModel, {
+      signal: options.signal,
       monitor(monitor) {
         if (!onDownloadProgress) {
           return;
         }
 
         monitor.addEventListener("downloadprogress", (event) => {
+          if (options.signal?.aborted) {
+            return;
+          }
           const progressEvent = /** @type {ProgressEvent} */ (event);
           onDownloadProgress(normalizeDownloadProgress(progressEvent.loaded));
         });
@@ -806,18 +838,23 @@ function assertValidPass1ExtractionResult(value) {
 /**
  * @param {LanguageModelGlobal} languageModel
  * @param {string} promptInput
+ * @param {boolean} [compactOutput]
+ * @param {AbortSignal} [signal]
  * @returns {Promise<Pass1ExtractionResult>}
  */
 async function categorizePass1Requirements(
   languageModel,
   promptInput,
-  compactOutput = false
+  compactOutput = false,
+  signal
 ) {
+  throwIfAnalysisAborted(signal);
   /** @type {LanguageModelSession | null} */
   let session = null;
 
   try {
     session = await createLanguageModelSession(languageModel, {
+      signal,
       initialPrompts: [
           {
             role: "system",
@@ -830,6 +867,7 @@ async function categorizePass1Requirements(
 
     const rawResult = await session.prompt(promptInput, {
       responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
+      signal,
     });
     const parsedResult = parseModelJson(rawResult, "Pass 1 categorization");
 
@@ -849,19 +887,24 @@ async function categorizePass1Requirements(
  * @param {LanguageModelGlobal} languageModel
  * @param {string} sourceJobPosting
  * @param {Pass1ExtractionResult} existingExtraction
+ * @param {boolean} [compactOutput]
+ * @param {AbortSignal} [signal]
  * @returns {Promise<Pass1ExtractionResult>}
  */
 async function reviewPass1Extraction(
   languageModel,
   sourceJobPosting,
   existingExtraction,
-  compactOutput = false
+  compactOutput = false,
+  signal
 ) {
+  throwIfAnalysisAborted(signal);
   /** @type {LanguageModelSession | null} */
   let session = null;
 
   try {
     session = await createLanguageModelSession(languageModel, {
+      signal,
       initialPrompts: [
           {
             role: "system",
@@ -883,6 +926,7 @@ async function reviewPass1Extraction(
       ),
       {
         responseConstraint: PASS_1_REQUIREMENTS_SCHEMA,
+        signal,
       }
     );
     const parsedResult = parseModelJson(rawResult, "Pass 1 completeness audit");
@@ -1455,6 +1499,7 @@ function consolidatePass1ChunkExtractions(
  * @returns {Promise<ExtractedRequirement[]>}
  */
 async function extractRequirementsFromJobText(jobText, options = {}) {
+  throwIfAnalysisAborted(options.signal);
   const languageModel = getLanguageModelGlobal();
 
   if (!languageModel) {
@@ -1481,6 +1526,7 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
     chunkIndex < inputPlan.chunks.length;
     chunkIndex += 1
   ) {
+    throwIfAnalysisAborted(options.signal);
     const chunkText = inputPlan.chunks[chunkIndex];
     const promptInput = labelExplicitJobBullets(chunkText);
     const progressBase = {
@@ -1502,7 +1548,8 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
       const categorizedResult = await categorizePass1Requirements(
         languageModel,
         promptInput,
-        isRetry
+        isRetry,
+        options.signal
       );
 
       options.onProgress?.({
@@ -1514,7 +1561,8 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
         languageModel,
         promptInput,
         categorizedResult,
-        isRetry
+        isRetry,
+        options.signal
       );
 
       debugLog(`${chunkLabel} categorized requirements`, {
@@ -2907,6 +2955,7 @@ function hydratePass2ModelResult(value, requirements) {
  * @param {{ id: string, text: string, kind: "substantive" | "context" }[]} resumeEvidence
  * @param {Pass2ModelResult} draftResult
  * @param {string[]} evidenceIds
+ * @param {AbortSignal} [signal]
  * @returns {Promise<Pass2ModelResult>}
  */
 async function reviewPass2Analysis(
@@ -2914,13 +2963,16 @@ async function reviewPass2Analysis(
   requirements,
   resumeEvidence,
   draftResult,
-  evidenceIds
+  evidenceIds,
+  signal
 ) {
+  throwIfAnalysisAborted(signal);
   /** @type {LanguageModelSession | null} */
   let session = null;
 
   try {
     session = await createLanguageModelSession(languageModel, {
+      signal,
       initialPrompts: [
         {
           role: "system",
@@ -2944,6 +2996,7 @@ async function reviewPass2Analysis(
           evidenceIds,
           requirements.length
         ),
+        signal,
       }
     );
     const parsedResult = parseModelJson(rawResult, "Pass 2 evidence audit");
@@ -4106,10 +4159,16 @@ function normalizeRetryablePass2Evidence(value, resumeEvidenceById) {
 /**
  * @param {string[]} requirements
  * @param {string[]} resumeBullets
+ * @param {ModelRunOptions} [options]
  * @returns {Promise<Pass2AnalysisResult>}
  */
-async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBullets) {
+async function analyzeRequirementBatchWithResumeBullets(
+  requirements,
+  resumeBullets,
+  options = {}
+) {
   return withModelOutputRetry(async (isRetry) => {
+    throwIfAnalysisAborted(options.signal);
     const languageModel = getLanguageModelGlobal();
 
     if (!languageModel) {
@@ -4173,6 +4232,7 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
 
     try {
       session = await createLanguageModelSession(languageModel, {
+        signal: options.signal,
         initialPrompts: [
           {
             role: "system",
@@ -4186,6 +4246,7 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
           [...resumeEvidenceById.keys()],
           normalizedRequirements.length
         ),
+        signal: options.signal,
       });
       const parsedResult = parseModelJson(rawResult, "Pass 2");
       hydratePass2ModelResult(parsedResult, normalizedRequirements);
@@ -4212,7 +4273,8 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
         normalizedRequirements,
         resumeEvidence,
         parsedResult,
-        [...resumeEvidenceById.keys()]
+        [...resumeEvidenceById.keys()],
+        options.signal
       );
 
       if (isRetry) {
@@ -4321,13 +4383,16 @@ async function analyzeRequirementBatchWithResumeBullets(requirements, resumeBull
  * @param {string[]} requirements
  * @param {string[]} resumeBullets
  * @param {MatchResult[]} matches
+ * @param {ModelRunOptions} [options]
  * @returns {Promise<MatchResult[]>}
  */
 async function auditConsolidatedPass2Matches(
   requirements,
   resumeBullets,
-  matches
+  matches,
+  options = {}
 ) {
+  throwIfAnalysisAborted(options.signal);
   const languageModel = getLanguageModelGlobal();
 
   if (!languageModel) {
@@ -4471,7 +4536,8 @@ async function auditConsolidatedPass2Matches(
         candidateRequirements,
         resumeEvidence,
         candidateDraft,
-        [...resumeEvidenceById.keys()]
+        [...resumeEvidenceById.keys()],
+        options.signal
       );
 
       if (isRetry) {
@@ -4727,9 +4793,15 @@ function normalizePass2EvidenceForTesting(
  *
  * @param {(string | ExtractedRequirement)[]} requirements
  * @param {string[]} resumeBullets
+ * @param {ModelRunOptions} [options]
  * @returns {Promise<Pass2AnalysisResult>}
  */
-async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets) {
+async function analyzeRequirementsWithResumeBullets(
+  requirements,
+  resumeBullets,
+  options = {}
+) {
+  throwIfAnalysisAborted(options.signal);
   const requirementMetadata = validateExtractedRequirements(
     requirements,
     "Requirements",
@@ -4764,13 +4836,15 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
     batchStart < scoredRequirements.length;
     batchStart += PASS_2_REQUIREMENT_BATCH_SIZE
   ) {
+    throwIfAnalysisAborted(options.signal);
     const batchRequirements = scoredRequirements.slice(
       batchStart,
       batchStart + PASS_2_REQUIREMENT_BATCH_SIZE
     );
     const batchAnalysis = await analyzeRequirementBatchWithResumeBullets(
       batchRequirements,
-      normalizedResumeBullets
+      normalizedResumeBullets,
+      options
     );
 
     matches.push(...batchAnalysis.matches);
@@ -4780,7 +4854,8 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
     ? await auditConsolidatedPass2Matches(
       scoredRequirements,
       normalizedResumeBullets,
-      matches
+      matches,
+      options
     )
     : [];
   let scoredMatchIndex = 0;
@@ -4824,12 +4899,15 @@ async function analyzeRequirementsWithResumeBullets(requirements, resumeBullets)
 
 /**
  * @param {(string | ExtractedRequirement)[]} requirements
+ * @param {ModelRunOptions} [options]
  * @returns {Promise<Pass2AnalysisResult>}
  */
-async function analyzeRequirementsWithSavedResume(requirements) {
+async function analyzeRequirementsWithSavedResume(requirements, options = {}) {
+  throwIfAnalysisAborted(options.signal);
   const resumeBullets = await getSavedResumeBullets();
+  throwIfAnalysisAborted(options.signal);
 
-  return analyzeRequirementsWithResumeBullets(requirements, resumeBullets);
+  return analyzeRequirementsWithResumeBullets(requirements, resumeBullets, options);
 }
 
 /**

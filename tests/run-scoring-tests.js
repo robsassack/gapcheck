@@ -3,6 +3,8 @@ const vm = require("node:vm");
 
 const testOutput = { textContent: "" };
 const context = {
+  AbortController,
+  DOMException,
   console: {
     error: console.error,
     info() {},
@@ -35,6 +37,7 @@ try {
     "tests/score-sensitivity.test.js",
     "tests/requirement-aware-scoring.test.js",
     "tests/model-output-retry.test.js",
+    "tests/analysis-cancellation.test.js",
   ]) {
     const source = fs.readFileSync(file, "utf8");
     vm.runInContext(source, context, { filename: file });
@@ -44,9 +47,12 @@ try {
   throw error;
 }
 
-const retryTestPromise = context.window.GapcheckModelOutputRetryTestPromise;
+const asyncTestPromises = [
+  context.window.GapcheckModelOutputRetryTestPromise,
+  context.window.GapcheckAnalysisCancellationTestPromise,
+];
 
-Promise.resolve(retryTestPromise).then(() => {
+Promise.all(asyncTestPromises).then(() => {
   process.stdout.write(`${testOutput.textContent}\n`);
 
 const pinnedRequirementCounts = fs
