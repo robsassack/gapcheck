@@ -2,7 +2,7 @@
 
 GapCheck is a Manifest V3 Chrome extension that compares a selected job posting against a saved resume using Chrome's built-in Gemini Nano model. It produces an on-device match score and organizes the posting's requirements into Covered, Partial, and Gaps sections with supporting resume evidence.
 
-![GapCheck side panel showing an 85% match score and analysis summary](assets/Screenshot_20260720_004538.png)
+![GapCheck side panel showing an 85% match score and analysis summary](assets/screenshot.png)
 
 ## Features
 
