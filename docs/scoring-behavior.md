@@ -39,15 +39,34 @@ decision rationale are recorded in
 
 ## Requirement extraction
 
-Pass 1 processes selected job text in paragraph-aware sections of at most 6,000
-characters. It analyzes sections sequentially, combines their extracted
+Before extraction begins, GapCheck deterministically removes recognized
+non-requirement content from the selected text. Company descriptions, equal
+opportunity and E-Verify statements, application accessibility instructions,
+and employment-agency notices are excluded using a combination of section
+heading recognition and content patterns, so legal and marketing boilerplate
+cannot be extracted or scored as candidate requirements. This filtering runs
+once across the full selection, ahead of sectioning, so an excluded section
+cannot leak back into analysis at a section boundary.
+
+Pass 1 then processes the filtered text in paragraph-aware sections of at most
+6,000 characters. It analyzes sections sequentially, combines their extracted
 requirements, removes duplicates and related fragments, preserves source type
 and explicit qualifier metadata, and then applies the 20-requirement cap to the
 posting as a whole.
 
-The total analyzed selection is bounded at 18,000 characters. If a larger
-selection is captured, the side panel reports how many characters were
-analyzed and excluded. Multi-section progress is also shown while Pass 1 runs.
+After the filtering step, the remaining analyzed text is bounded at 18,000
+characters. If more text than this remains, the side panel reports how many
+characters were analyzed and excluded; the reported counts describe the
+filtered text rather than the raw selection, so they can differ from the
+selection's original length when boilerplate was removed. Multi-section
+progress is also shown while Pass 1 runs.
+
+Every extracted requirement is additionally validated in application code
+against the source text it came from. A requirement's content words must
+substantially appear in the posting, and numeric values such as years of
+experience must appear exactly, so the model cannot introduce requirements the
+posting does not contain. If an extraction fails this grounding check
+entirely, the analysis is retried rather than silently repaired.
 
 Extraction prioritizes candidate qualifications and work constraints before
 lower-priority responsibilities. Detected source bullets remain indivisible so
@@ -109,9 +128,19 @@ runs.
 - Scores remain sensitive to extraction grouping. The extraction pipeline
   reduces fragmentation and duplicates, but semantically similar restatements
   can occasionally remain or related requirements can be grouped differently.
-- The 20-requirement cap can omit lower-priority material from unusually dense
-  postings. Reaching the cap is a review signal, not proof that every source
-  requirement was retained.
+- The 20-requirement cap can omit material from unusually dense postings.
+  Although extraction prioritizes eligibility items, cap trimming has been
+  observed to occasionally drop a required qualification while retaining
+  responsibilities. Reaching the cap is a review signal, not proof that every
+  source requirement was retained.
+- Boilerplate filtering is pattern-based. Postings with unrecognized section
+  structures can retain some legal or company boilerplate, or, more rarely,
+  exclude relevant text when it appears under an unrecognized heading, because
+  an excluded section runs until the next recognized requirements heading.
+- Grounding validation compares requirement wording against the posting's
+  vocabulary. A legitimately extracted requirement can occasionally be dropped
+  if the model rephrases it so heavily that it shares too little wording with
+  the source.
 - Text beyond the 18,000-character total safeguard is not analyzed. The side
   panel discloses the exclusion instead of silently truncating it.
 - Long postings take longer because each section receives an extraction and a

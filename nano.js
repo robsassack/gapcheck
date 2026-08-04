@@ -158,9 +158,22 @@ const PASS_1_EXPLICIT_QUALIFICATION_PATTERN =
 const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
   /^(?:the\s+)?(?:ideal|strongest)\s+candidates?\b|\brole\s+(?:helps|supports|turns|exists)\b|\battention to detail\b|\b(?:curious|pragmatic|passionate|self-starter|detail-oriented)\b/i;
 const PASS_1_LIST_SECTION_HEADING_PATTERN =
-  /^(?:what\s+(?:you(?:'|’)ll|you\s+will)\s+do|what\s+we(?:'|’)?re\s+looking\s+for|responsibilities|qualifications|requirements|preferred(?:,\s+not\s+required)?|nice\s+to\s+have)\s*:?\s*$/i;
+  /^(?:(?:key|core|primary|essential|main|additional|job|role|position|required|minimum|basic|desired|preferred|education|experience|technical|professional)\s+)?(?:what\s+(?:you(?:'|’)ll|you\s+will)\s+do|what\s+we(?:'|’)?re\s+looking\s+for|responsibilities|qualifications|requirements|preferred(?:,\s+not\s+required)?|nice\s+to\s+have|things\s+we(?:'|’)?re\s+looking\s+for)\s*:?\s*$/i;
 const PASS_1_OTHER_SECTION_HEADING_PATTERN =
-  /^(?:about(?:\s+the)?\s+(?:team|role|company)|why\s+you(?:'|’)?ll\s+love\s+this\s+role|benefits|compensation|equal\s+opportunity)\s*:?\s*$/i;
+  /^(?:about(?:\s+the)?\s+(?:team|role|company)|about\s+us|why\s+you(?:'|’)?ll\s+love\s+this\s+role|benefits|compensation|equal\s+opportunity(?:\s+employer)?|diversity(?:\s*(?:,|&|and)\s*inclusion)?|eeo(?:\s+statement)?|accessibility(?:\s+for\s+applicants?(?:\s+with\s+disabilities)?)?|employment\s+agenc(?:y|ies)|e-?verify)\s*:?\s*$/i;
+const PASS_1_NAMED_COMPANY_HEADING_PATTERN =
+  /^About\s+(?![^:]*\b(?:experience|years?|skills?|qualifications?|requirements?|candidates?|applicants?|you)\b)(?:[A-Z0-9][A-Za-z0-9&.,'’-]*)(?:\s+(?:[A-Z0-9][A-Za-z0-9&.,'’-]*|and|of|the)){0,4}\s*:?\s*$/;
+/**
+ * Catches legal/HR boilerplate by content rather than by a preceding heading,
+ * so it is excluded from SOURCE BULLET labeling even when it appears mid-section
+ * (e.g. after "Qualifications" left list-mode open) or under an unrecognized
+ * or missing heading. This is a safety net alongside the heading patterns above,
+ * not a replacement for closing list-mode when a real heading is seen.
+ *
+ * @type {RegExp}
+ */
+const PASS_1_BOILERPLATE_CONTENT_PATTERN =
+  /\bequal\s+opportunity\s+employer\b|\bdisabled\/minorities\/veterans\/women\b|\bprotected\s+(?:class|veteran|characteristic)s?\b|\breasonable\s+accommodations?\b[^.!?]{0,160}\b(?:application|interview|hiring|recruitment)\b|\baccessibility\s+for\s+applicants\b|\b(?:is\s+an?|as\s+an?)\s+e-?verify\s+employer\b|\be-?verify\s+is\s+an?\b|\b(?:participates?|participating|enrolled)\s+in\s+(?:the\s+)?e-?verify\b|\b(?:do(?:es)?\s+not|cannot|will\s+not)\s+accept\b[^.!?]{0,120}\bunsolicited\s+resumes?\b|\bunsolicited\s+resumes?\b[^.!?]{0,120}\b(?:search\s+firms?|staffing\s+agenc(?:y|ies)|employment\s+agenc(?:y|ies))\b|\b(?:search\s+firms?|staffing\s+agenc(?:y|ies)|employment\s+agenc(?:y|ies))\b[^.!?]{0,160}\bagency\s+agreements?\b/i;
 
 /**
  * @typedef {object} Pass1ExtractionResult
@@ -786,6 +799,7 @@ function labelExplicitJobBullets(jobText) {
   let bulletIndex = 0;
   let activeBullet = "";
   let isImplicitListSection = false;
+  let isExcludedSection = false;
 
   function flushActiveBullet() {
     if (!activeBullet) {
@@ -803,14 +817,28 @@ function labelExplicitJobBullets(jobText) {
     if (PASS_1_LIST_SECTION_HEADING_PATTERN.test(trimmedLine)) {
       flushActiveBullet();
       isImplicitListSection = true;
+      isExcludedSection = false;
       outputLines.push(rawLine);
       return;
     }
 
-    if (PASS_1_OTHER_SECTION_HEADING_PATTERN.test(trimmedLine)) {
+    if (
+      PASS_1_OTHER_SECTION_HEADING_PATTERN.test(trimmedLine) ||
+      PASS_1_NAMED_COMPANY_HEADING_PATTERN.test(trimmedLine)
+    ) {
       flushActiveBullet();
       isImplicitListSection = false;
-      outputLines.push(rawLine);
+      isExcludedSection = true;
+      return;
+    }
+
+    if (isExcludedSection) {
+      flushActiveBullet();
+      return;
+    }
+
+    if (PASS_1_BOILERPLATE_CONTENT_PATTERN.test(trimmedLine)) {
+      flushActiveBullet();
       return;
     }
 
@@ -832,7 +860,7 @@ function labelExplicitJobBullets(jobText) {
     if (
       isImplicitListSection &&
       trimmedLine.length >= 20 &&
-      /[.!?]\s*$/.test(trimmedLine)
+      (/[.!?)]\s*$/.test(trimmedLine) || /^[A-Z0-9]/.test(trimmedLine))
     ) {
       bulletIndex += 1;
       outputLines.push(
@@ -1007,6 +1035,89 @@ async function reviewPass1Extraction(
       session.destroy();
     }
   }
+}
+
+const PASS_1_GROUNDING_OVERLAP_THRESHOLD = 0.7;
+
+/**
+ * @param {string} text
+ * @returns {string[]}
+ */
+function getPass1GroundingTokens(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9+]+/g, " ")
+    .split(" ")
+    .map((token) => token.replace(/\++$/, ""))
+    .filter((token) => token && !PASS_1_COMPARISON_STOP_WORDS.has(token));
+}
+
+/**
+ * A small model instructed to "restore omissions" can confabulate a generic
+ * requirements template (e.g. R, TensorFlow, cloud platforms) that never
+ * appears in the posting. Prompt instructions alone cannot prevent this, so
+ * grounding is verified deterministically: content tokens must substantially
+ * appear in the source, and numeric tokens (years, counts) must appear
+ * exactly, since invented durations change scoring materially.
+ *
+ * @param {string} requirementText
+ * @param {Set<string>} sourceTokenSet
+ * @returns {boolean}
+ */
+function isPass1RequirementGroundedInSource(requirementText, sourceTokenSet) {
+  const tokens = getPass1GroundingTokens(requirementText);
+
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  let matchedCount = 0;
+
+  for (const token of tokens) {
+    const hasToken = sourceTokenSet.has(token) ||
+      sourceTokenSet.has(`${token}s`) ||
+      (token.endsWith("s") && sourceTokenSet.has(token.slice(0, -1)));
+
+    if (/^\d+$/.test(token) && !hasToken) {
+      return false;
+    }
+
+    if (hasToken) {
+      matchedCount += 1;
+    }
+  }
+
+  return matchedCount / tokens.length >= PASS_1_GROUNDING_OVERLAP_THRESHOLD;
+}
+
+/**
+ * @param {Pass1ExtractionResult} extraction
+ * @param {string} sourceText
+ * @returns {Pass1ExtractionResult}
+ */
+function groundPass1ExtractionInSource(extraction, sourceText) {
+  const sourceTokenSet = new Set(getPass1GroundingTokens(sourceText));
+
+  /** @param {Pass1ModelRequirement[]} items */
+  const filterItems = (items) => {
+    return items.filter((item) => {
+      const grounded = isPass1RequirementGroundedInSource(
+        item.requirement,
+        sourceTokenSet
+      );
+
+      if (!grounded) {
+        debugLog("Pass 1 grounding filter dropped ungrounded item", item);
+      }
+
+      return grounded;
+    });
+  };
+
+  return {
+    eligibilityRequirements: filterItems(extraction.eligibilityRequirements),
+    responsibilities: filterItems(extraction.responsibilities),
+  };
 }
 
 /**
@@ -1575,7 +1686,7 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
     throw new Error("LanguageModel is not available in this browser.");
   }
 
-  const inputPlan = splitJobTextForPass1(jobText);
+  const inputPlan = splitJobTextForPass1(labelExplicitJobBullets(jobText));
 
   if (inputPlan.chunks.length === 0) {
     return [];
@@ -1597,7 +1708,7 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
   ) {
     throwIfAnalysisAborted(options.signal);
     const chunkText = inputPlan.chunks[chunkIndex];
-    const promptInput = labelExplicitJobBullets(chunkText);
+    const promptInput = chunkText;
     const progressBase = {
       chunkNumber: chunkIndex + 1,
       chunkCount: inputPlan.chunks.length,
@@ -1633,15 +1744,30 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
         isRetry,
         options.signal
       );
+      const groundedExtraction = groundPass1ExtractionInSource(
+        reviewedExtraction,
+        promptInput
+      );
+      const reviewedItemCount = reviewedExtraction.eligibilityRequirements.length +
+        reviewedExtraction.responsibilities.length;
+      const groundedItemCount = groundedExtraction.eligibilityRequirements.length +
+        groundedExtraction.responsibilities.length;
+
+      if (groundedItemCount === 0 && reviewedItemCount > 0) {
+        throw createModelOutputError(
+          `${chunkLabel} returned no requirements grounded in the job posting.`
+        );
+      }
 
       debugLog(`${chunkLabel} categorized requirements`, {
         text: chunkText,
         promptInput,
         initialExtraction: categorizedResult,
         reviewedExtraction,
+        groundedExtraction,
       });
 
-      return reviewedExtraction;
+      return groundedExtraction;
     }, chunkLabel);
 
     chunkExtractions.push(reviewedResult);
@@ -5162,6 +5288,9 @@ function computeOverallScore(matches) {
     normalizePass2EvidenceForTesting,
     assertValidPass1ExtractionResult,
     createExtractedRequirement,
+    groundPass1ExtractionInSource,
+    isPass1RequirementGroundedInSource,
+    getPass1GroundingTokens,
     labelExplicitJobBullets,
     mergeRelatedPass1RequirementsToLimit,
     splitJobTextForPass1,

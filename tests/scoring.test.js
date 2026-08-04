@@ -316,6 +316,23 @@ const implicitListJobText = [
 ].join("\n");
 const labeledImplicitListJob =
   window.GapcheckNano.testHooks.labelExplicitJobBullets(implicitListJobText);
+const roleAndQualificationBoundaryJobText = [
+  "About The Role",
+  "You will translate customer needs into maintainable product features.",
+  "- Build and maintain production APIs with guidance from senior engineers.",
+  "",
+  "Minimum Qualifications",
+  "About five years of relevant software experience is preferred.",
+  "Experience configuring E-Verify integrations is required.",
+  "We are an equal opportunity employer committed to every protected class.",
+  "Experience working with employment agencies on product integrations is helpful.",
+  "About Copper Finch Labs",
+  "Copper Finch Labs builds scheduling software for local service businesses.",
+].join("\n");
+const labeledRoleAndQualificationBoundaryJob =
+  window.GapcheckNano.testHooks.labelExplicitJobBullets(
+    roleAndQualificationBoundaryJobText
+  );
 const separatelyGroupedImplicitItems =
   window.GapcheckNano.testHooks.mergeRelatedPass1RequirementsToLimit(
     [
@@ -415,6 +432,56 @@ const pass1GroupingResults = [
       labeledImplicitListJob.match(
         /\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\]/g
       )?.length || 0,
+  },
+  {
+    name: "about-the-role prose remains available to requirement extraction",
+    expected: true,
+    actual: labeledRoleAndQualificationBoundaryJob.includes(
+      "You will translate customer needs into maintainable product features."
+    ),
+  },
+  {
+    name: "explicit role bullets remain labeled after an about-the-role heading",
+    expected: true,
+    actual: /\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\] Build and maintain production APIs/.test(
+      labeledRoleAndQualificationBoundaryJob
+    ),
+  },
+  {
+    name: "about-duration qualifications are not mistaken for company headings",
+    expected: true,
+    actual: /\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\] About five years of relevant software experience/.test(
+      labeledRoleAndQualificationBoundaryJob
+    ),
+  },
+  {
+    name: "legitimate E-Verify qualifications remain labeled",
+    expected: true,
+    actual: /\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\] Experience configuring E-Verify integrations/.test(
+      labeledRoleAndQualificationBoundaryJob
+    ),
+  },
+  {
+    name: "legal boilerplate is removed without closing the qualification list",
+    expected: true,
+    actual:
+      !labeledRoleAndQualificationBoundaryJob.includes(
+        "equal opportunity employer"
+      ) &&
+      /\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\] Experience working with employment agencies/.test(
+        labeledRoleAndQualificationBoundaryJob
+      ),
+  },
+  {
+    name: "named company headings close qualification lists without hiding company context",
+    expected: true,
+    actual:
+      labeledRoleAndQualificationBoundaryJob.includes(
+        "Copper Finch Labs builds scheduling software"
+      ) &&
+      !/\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\] Copper Finch Labs builds scheduling software/.test(
+        labeledRoleAndQualificationBoundaryJob
+      ),
   },
   {
     name: "implicit source items consolidate fragments independently",

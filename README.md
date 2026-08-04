@@ -69,6 +69,7 @@ Neither your resume, imported PDF text, nor your analysis leaves your device. PD
 
 - Match results are AI-generated and can vary between runs.
 - The score is a directional comparison, not a hiring recommendation or guarantee.
+- Company descriptions, equal opportunity and E-Verify statements, and other non-requirement boilerplate are automatically excluded from analysis and do not appear in results.
 - Selected text is processed in bounded sections; text beyond 18,000 characters is excluded with a visible warning.
 - Job text must be selected manually; GapCheck does not automatically scrape the page.
 - PDF import supports text-based files up to 15 MB and 50 pages. Scanned or image-only PDFs require OCR and are not supported; complex layouts should be reviewed in the extraction preview before saving.
