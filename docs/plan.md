@@ -307,6 +307,14 @@ security policy. OCR remains explicitly out of scope.
 
 Prepare a production-only extension package, audit and explain its permissions, complete the store listing and privacy disclosures, and validate the complete first-install experience before submitting it to the Chrome Web Store.
 
+The production permission rationale, including the decision to retain
+`<all_urls>` instead of `activeTab` for the persistent side-panel workflow, is
+recorded in [`permissions.md`](permissions.md).
+
+The verified user-facing privacy policy draft is maintained in
+[`../PRIVACY.md`](../PRIVACY.md). It must be published at a stable public URL
+before the Store privacy disclosures are completed.
+
 ### Phase 9 — Saved Analysis History
 
 Store successful analysis records locally using a versioned, bounded schema. Let users reopen, delete, or clear saved analyses while keeping malformed or older records from breaking the side panel.

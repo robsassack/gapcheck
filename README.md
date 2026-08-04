@@ -65,6 +65,9 @@ The initial model download can take time. If Chrome reports that the model is un
 
 Neither your resume, imported PDF text, nor your analysis leaves your device. PDF extraction and AI analysis both run locally. GapCheck stores the saved resume in Chrome's local extension storage and does not require an API key or make server calls for analysis.
 
+See the [GapCheck Privacy Policy](PRIVACY.md) for details about handled data,
+local retention, permissions, deletion controls, and diagnostic logging.
+
 ## Current Limitations
 
 - Match results are AI-generated and can vary between runs.
