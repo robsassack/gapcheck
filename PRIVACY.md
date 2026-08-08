@@ -1,6 +1,6 @@
 # GapCheck Privacy Policy
 
-**Effective date:** August 3, 2026
+**Effective date:** August 7, 2026
 
 GapCheck is a Chrome extension that compares text selected from a job posting
 with a resume saved in the extension. GapCheck is designed to process this
@@ -38,10 +38,14 @@ informational and are not hiring decisions or guarantees.
 
 ## Local storage and retention
 
-GapCheck stores the following information in `chrome.storage.local`:
+GapCheck stores the following user content in `chrome.storage.local`:
 
 - The raw resume text the user confirms and saves.
 - Parsed resume evidence lines derived from that text.
+
+GapCheck also stores one non-content preference in the extension page's
+`localStorage`: a flag recording whether the user has enabled developer-console
+debug mode. This flag holds no resume or job-posting content.
 
 The saved resume remains in the user's Chrome extension storage until the
 user replaces or clears it, or uninstalls GapCheck.
@@ -119,10 +123,16 @@ developer cannot view, recover, or remotely delete it.
 
 ## Diagnostic logging
 
-Diagnostic logging is disabled by default. If a user explicitly enables
+Logging of user content is disabled by default. If a user explicitly enables
 GapCheck's developer-console debug mode, local console logs may contain
 selected job text, resume evidence, prompts, model output, or analysis data.
-These logs are not transmitted by GapCheck. Users should disable debug mode
+
+Independently of debug mode, GapCheck always reports operational errors, such
+as a failed model check or a page it could not access, to the local developer
+console. These error reports describe the failure itself and are not intended
+to include resume or job-posting content.
+
+No console output is transmitted by GapCheck. Users should disable debug mode
 and clear the console before sharing diagnostic output.
 
 ## Security
@@ -135,9 +145,8 @@ method of storage can be guaranteed to be completely secure.
 ## Children's privacy
 
 GapCheck is a general-purpose job-search utility and is not directed to
-children under 13. GapCheck does not knowingly collect personal information
-from children or other users through the extension because it does not
-transmit user content to the developer.
+children under 13. GapCheck does not knowingly transmit personal information
+from children or other users to the developer or third parties.
 
 ## Changes to this policy
 
@@ -151,4 +160,4 @@ Store listing as appropriate.
 For privacy questions about GapCheck, contact:
 
 Rob Sassack
-<rsassack25@gmail.com>
+<gapcheck.publisher@gmail.com>

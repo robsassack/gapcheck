@@ -22,7 +22,7 @@ GapCheck is a Manifest V3 Chrome extension that compares a selected job posting 
 ## Use GapCheck
 
 1. Open GapCheck's options page and either paste your resume or choose a PDF.
-2. For a PDF, review the locally extracted text and click Use this resume. For pasted text, click Save resume.
+2. For a PDF, review the locally extracted text and click Use and save this resume. For pasted text, click Save resume.
 3. Open a job posting and select the text you want to analyze.
 4. Open the GapCheck side panel and click Analyze selected text.
 5. Review the score, summary, covered requirements, partial matches, and gaps.
