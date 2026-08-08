@@ -159,8 +159,10 @@ const PASS_1_NON_REQUIREMENT_CONTEXT_PATTERN =
   /^(?:the\s+)?(?:ideal|strongest)\s+candidates?\b|\brole\s+(?:helps|supports|turns|exists)\b|\battention to detail\b|\b(?:curious|pragmatic|passionate|self-starter|detail-oriented)\b/i;
 const PASS_1_LIST_SECTION_HEADING_PATTERN =
   /^(?:(?:key|core|primary|essential|main|additional|job|role|position|required|minimum|basic|desired|preferred|education|experience|technical|professional)\s+)?(?:what\s+(?:you(?:'|’)ll|you\s+will)\s+do|what\s+we(?:'|’)?re\s+looking\s+for|responsibilities|qualifications|requirements|preferred(?:,\s+not\s+required)?|nice\s+to\s+have|things\s+we(?:'|’)?re\s+looking\s+for)\s*:?\s*$/i;
+const PASS_1_CONTEXT_SECTION_HEADING_PATTERN =
+  /^(?:about(?:\s+the)?\s+(?:team|role|company)|about\s+us)\s*:?\s*$/i;
 const PASS_1_OTHER_SECTION_HEADING_PATTERN =
-  /^(?:about(?:\s+the)?\s+(?:team|role|company)|about\s+us|why\s+you(?:'|’)?ll\s+love\s+this\s+role|benefits|compensation|equal\s+opportunity(?:\s+employer)?|diversity(?:\s*(?:,|&|and)\s*inclusion)?|eeo(?:\s+statement)?|accessibility(?:\s+for\s+applicants?(?:\s+with\s+disabilities)?)?|employment\s+agenc(?:y|ies)|e-?verify)\s*:?\s*$/i;
+  /^(?:why\s+you(?:'|’)?ll\s+love\s+this\s+role|benefits|compensation|equal\s+opportunity(?:\s+employer)?|diversity(?:\s*(?:,|&|and)\s*inclusion)?|eeo(?:\s+statement)?|accessibility(?:\s+for\s+applicants?(?:\s+with\s+disabilities)?)?|employment\s+agenc(?:y|ies)|e-?verify)\s*:?\s*$/i;
 const PASS_1_NAMED_COMPANY_HEADING_PATTERN =
   /^About\s+(?![^:]*\b(?:experience|years?|skills?|qualifications?|requirements?|candidates?|applicants?|you)\b)(?:[A-Z0-9][A-Za-z0-9&.,'’-]*)(?:\s+(?:[A-Z0-9][A-Za-z0-9&.,'’-]*|and|of|the)){0,4}\s*:?\s*$/;
 /**
@@ -823,9 +825,17 @@ function labelExplicitJobBullets(jobText) {
     }
 
     if (
-      PASS_1_OTHER_SECTION_HEADING_PATTERN.test(trimmedLine) ||
+      PASS_1_CONTEXT_SECTION_HEADING_PATTERN.test(trimmedLine) ||
       PASS_1_NAMED_COMPANY_HEADING_PATTERN.test(trimmedLine)
     ) {
+      flushActiveBullet();
+      isImplicitListSection = false;
+      isExcludedSection = false;
+      outputLines.push(rawLine);
+      return;
+    }
+
+    if (PASS_1_OTHER_SECTION_HEADING_PATTERN.test(trimmedLine)) {
       flushActiveBullet();
       isImplicitListSection = false;
       isExcludedSection = true;

@@ -244,10 +244,10 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ## Phase 8 — Chrome Web Store Release
 
-- [ ] Review current Chrome Web Store policies and developer-account requirements
+- [x] Review current Chrome Web Store policies and developer-account requirements
 - [x] Audit manifest permissions and document why broad page access is required
   - [x] Record the `<all_urls>` decision, `activeTab` alternative, and Store disclosure in [`permissions.md`](permissions.md)
-- [ ] Prepare a production package that excludes development-only tests and documentation
+- [x] Prepare a production package that excludes development-only tests and documentation
 - [ ] Validate manifest metadata, icons, versioning, and minimum Chrome requirements
 - [ ] Prepare the store description, screenshots, and required promotional assets
 - [ ] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis

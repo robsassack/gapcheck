@@ -33,6 +33,18 @@ Chrome does not automatically reload unpacked extensions after file changes.
 
 After editing extension files, open `chrome://extensions` and click the reload icon on the GapCheck extension card. If the side panel or options page is already open, close and reopen it after reloading.
 
+## Production Package
+
+Run `npm run package:extension` to create a production-only Chrome Web Store
+ZIP and SHA-256 checksum under `dist/`. The package uses an explicit runtime
+file allowlist and excludes tests, documentation, screenshots, dependency
+metadata, and other development-only files.
+
+The **Package Chrome extension** GitHub Actions workflow runs the test and
+type-check suites before producing the same artifacts. It can be started
+manually or by pushing a version tag matching the manifest version, such as
+`v1.0.0`.
+
 ## Development Benchmark Runner
 
 GapCheck includes a browser-based runner for the packaged Product Operations,

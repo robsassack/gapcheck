@@ -1,6 +1,7 @@
 {
   "private": true,
   "scripts": {
+    "package:extension": "bash scripts/package-extension.sh",
     "test": "node tests/run-scoring-tests.js && node tests/pdf-resume-import.test.mjs",
     "typecheck": "tsc --project jsconfig.json && tsc --project tests/jsconfig.json"
   },
