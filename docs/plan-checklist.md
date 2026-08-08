@@ -248,7 +248,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 - [x] Audit manifest permissions and document why broad page access is required
   - [x] Record the `<all_urls>` decision, `activeTab` alternative, and Store disclosure in [`permissions.md`](permissions.md)
 - [x] Prepare a production package that excludes development-only tests and documentation
-- [ ] Validate manifest metadata, icons, versioning, and minimum Chrome requirements
+- [x] Validate manifest metadata, icons, versioning, and minimum Chrome requirements
 - [ ] Prepare the store description, screenshots, and required promotional assets
 - [ ] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis
   - [x] Draft and verify the public-facing privacy policy in [`../PRIVACY.md`](../PRIVACY.md)

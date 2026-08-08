@@ -542,7 +542,7 @@ async function checkNanoAvailability() {
     nanoStatusDot.dataset.state = "error";
     nanoStatusValue.textContent = "Not found";
     nanoStatusHint.textContent =
-      "Enable chrome://flags/#optimization-guide-on-device-model and chrome://flags/#prompt-api-for-gemini-nano, then relaunch Chrome.";
+      "GapCheck requires Chrome 138 or later on a supported desktop device.";
     retryNanoBtn.hidden = false;
     updateAnalyzeButtonState(true);
     return;
