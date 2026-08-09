@@ -333,6 +333,30 @@ const labeledRoleAndQualificationBoundaryJob =
   window.GapcheckNano.testHooks.labelExplicitJobBullets(
     roleAndQualificationBoundaryJobText
   );
+const markerLeakJobText = [
+  "Responsibilities",
+  "- Build responsive, accessible interfaces with HTML, CSS, TypeScript, and React.",
+  "- Develop and maintain REST APIs with Node.js and Express.",
+  "",
+  "Qualifications",
+  "- At least one year of professional software-development experience, a substantial internship, or equivalent shipped project work.",
+].join("\n");
+const labeledMarkerLeakJob =
+  window.GapcheckNano.testHooks.labelExplicitJobBullets(markerLeakJobText);
+const sanitizedMarkerLeakExtraction =
+  window.GapcheckNano.testHooks.sanitizePass1Extraction(
+    {
+      eligibilityRequirements: [
+        {
+          requirement:
+            "Qualifications [SOURCE BULLET J3 - KEEP AS ONE REQUIREMENT] At least one year of professional software-development experience, a substantial internship, or equivalent shipped project work; Build responsive, accessible interfaces with HTML, CSS, TypeScript, and React.",
+          qualifier: "required",
+        },
+      ],
+      responsibilities: [],
+    },
+    labeledMarkerLeakJob
+  );
 const separatelyGroupedImplicitItems =
   window.GapcheckNano.testHooks.mergeRelatedPass1RequirementsToLimit(
     [
@@ -482,6 +506,22 @@ const pass1GroupingResults = [
       !/\[SOURCE BULLET J\d+ - KEEP AS ONE REQUIREMENT\] Copper Finch Labs builds scheduling software/.test(
         labeledRoleAndQualificationBoundaryJob
       ),
+  },
+  {
+    name: "echoed source bullet metadata is replaced with the exact source requirement",
+    expected:
+      "At least one year of professional software-development experience, a substantial internship, or equivalent shipped project work.",
+    actual:
+      sanitizedMarkerLeakExtraction.eligibilityRequirements[0]?.requirement || "",
+  },
+  {
+    name: "source bullet metadata is removed before source consolidation",
+    expected: false,
+    actual: /SOURCE BULLET|KEEP AS ONE REQUIREMENT/.test(
+      window.GapcheckNano.testHooks.stripPass1SourceBulletLabels(
+        labeledMarkerLeakJob
+      )
+    ),
   },
   {
     name: "implicit source items consolidate fragments independently",

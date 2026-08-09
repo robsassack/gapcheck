@@ -51,6 +51,7 @@ const PASS_1_EXTRACTION_SYSTEM_PROMPT = [
   "Eligibility completeness has priority over responsibilities; never replace or omit an eligibility item to include a responsibility.",
   "Do not combine separate labeled source bullets with each other.",
   "The input labels detected list items as SOURCE BULLET J1, J2, and so on.",
+  "The SOURCE BULLET labels are private input metadata: never copy a label or a section heading into a returned requirement.",
   "Return no more than one requirements item for each SOURCE BULLET label.",
   "Treat every labeled source bullet as indivisible: do not split tools, audiences, browsers, deliverables, alternatives, or concepts joined by and/or into separate requirements.",
   "Exclude illustrative tasks, deliverables, and substeps introduced by phrases such as 'typical work includes', 'examples include', 'for example', or similar language.",
@@ -389,6 +390,8 @@ async function createLanguageModelSession(languageModel, options) {
  *       assertValidPass1ExtractionResult: typeof assertValidPass1ExtractionResult,
  *       createExtractedRequirement: typeof createExtractedRequirement,
  *       labelExplicitJobBullets: typeof labelExplicitJobBullets,
+ *       stripPass1SourceBulletLabels: typeof stripPass1SourceBulletLabels,
+ *       sanitizePass1Extraction: typeof sanitizePass1Extraction,
  *       mergeRelatedPass1RequirementsToLimit: typeof mergeRelatedPass1RequirementsToLimit,
  *       splitJobTextForPass1: typeof splitJobTextForPass1,
  *       consolidatePass1ChunkExtractions: typeof consolidatePass1ChunkExtractions,
@@ -888,6 +891,84 @@ function labelExplicitJobBullets(jobText) {
 }
 
 /**
+ * @param {string} text
+ * @returns {string}
+ */
+function stripPass1SourceBulletLabels(text) {
+  return text
+    .replace(
+      /\[\s*SOURCE\s+BULLET\s+J\d+\s*[-–—]\s*KEEP\s+AS\s+ONE\s+REQUIREMENT\s*\]\s*/gi,
+      ""
+    )
+    .trim();
+}
+
+/**
+ * Recover exact source bullets when the model echoes private prompt metadata.
+ * Using the source text also discards any heading or unrelated requirement the
+ * model may have attached to the leaked label.
+ *
+ * @param {Pass1ExtractionResult} extraction
+ * @param {string} labeledSourceText
+ * @returns {Pass1ExtractionResult}
+ */
+function sanitizePass1Extraction(extraction, labeledSourceText) {
+  /** @type {Map<string, string>} */
+  const sourceBulletsByLabel = new Map();
+
+  labeledSourceText.split("\n").forEach((rawLine) => {
+    const sourceBullet = rawLine.trim().match(
+      /^\[\s*SOURCE\s+BULLET\s+(J\d+)\s*[-–—]\s*KEEP\s+AS\s+ONE\s+REQUIREMENT\s*\]\s+(.+)$/i
+    );
+
+    if (sourceBullet) {
+      sourceBulletsByLabel.set(sourceBullet[1].toUpperCase(), sourceBullet[2].trim());
+    }
+  });
+
+  /** @param {Pass1ModelRequirement[]} items */
+  const sanitizeItems = (items) => {
+    /** @type {Pass1ModelRequirement[]} */
+    const sanitizedItems = [];
+    const seen = new Set();
+
+    items.forEach((item) => {
+      const echoedLabels = [...item.requirement.matchAll(
+        /\[\s*SOURCE\s+BULLET\s+(J\d+)\s*[-–—]\s*KEEP\s+AS\s+ONE\s+REQUIREMENT\s*\]/gi
+      )];
+      const recoveredSourceBullets = echoedLabels
+        .map((match) => sourceBulletsByLabel.get(match[1].toUpperCase()) || "")
+        .filter(Boolean);
+      const requirementTexts = recoveredSourceBullets.length > 0
+        ? recoveredSourceBullets
+        : [stripPass1SourceBulletLabels(item.requirement)];
+
+      requirementTexts.forEach((requirementText) => {
+        const normalizedText = requirementText.replace(/\s+/g, " ").trim();
+        const key = normalizedText.toLowerCase();
+
+        if (!normalizedText || seen.has(key)) {
+          return;
+        }
+
+        seen.add(key);
+        sanitizedItems.push({
+          requirement: normalizedText,
+          qualifier: inferExplicitRequirementQualifier(normalizedText) || item.qualifier,
+        });
+      });
+    });
+
+    return sanitizedItems.slice(0, PASS_1_MAX_REQUIREMENTS);
+  };
+
+  return {
+    eligibilityRequirements: sanitizeItems(extraction.eligibilityRequirements),
+    responsibilities: sanitizeItems(extraction.responsibilities),
+  };
+}
+
+/**
  * @param {unknown} value
  * @returns {asserts value is Pass1ExtractionResult}
  */
@@ -979,7 +1060,9 @@ async function categorizePass1Requirements(
     const parsedResult = parseModelJson(rawResult, "Pass 1 categorization");
 
     assertValidPass1ExtractionResult(parsedResult);
-    return parsedResult;
+    const sanitizedResult = sanitizePass1Extraction(parsedResult, promptInput);
+    assertValidPass1ExtractionResult(sanitizedResult);
+    return sanitizedResult;
   } finally {
     if (session) {
       session.destroy();
@@ -1039,7 +1122,9 @@ async function reviewPass1Extraction(
     const parsedResult = parseModelJson(rawResult, "Pass 1 completeness audit");
 
     assertValidPass1ExtractionResult(parsedResult);
-    return parsedResult;
+    const sanitizedResult = sanitizePass1Extraction(parsedResult, sourceJobPosting);
+    assertValidPass1ExtractionResult(sanitizedResult);
+    return sanitizedResult;
   } finally {
     if (session) {
       session.destroy();
@@ -1756,7 +1841,7 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
       );
       const groundedExtraction = groundPass1ExtractionInSource(
         reviewedExtraction,
-        promptInput
+        stripPass1SourceBulletLabels(promptInput)
       );
       const reviewedItemCount = reviewedExtraction.eligibilityRequirements.length +
         reviewedExtraction.responsibilities.length;
@@ -1785,7 +1870,7 @@ async function extractRequirementsFromJobText(jobText, options = {}) {
 
   const requirements = consolidatePass1ChunkExtractions(
     chunkExtractions,
-    inputPlan.chunks.join("\n\n")
+    inputPlan.chunks.map(stripPass1SourceBulletLabels).join("\n\n")
   );
 
   debugLog("Pass 1 requirements with source metadata", requirements);
@@ -5302,6 +5387,8 @@ function computeOverallScore(matches) {
     isPass1RequirementGroundedInSource,
     getPass1GroundingTokens,
     labelExplicitJobBullets,
+    stripPass1SourceBulletLabels,
+    sanitizePass1Extraction,
     mergeRelatedPass1RequirementsToLimit,
     splitJobTextForPass1,
     consolidatePass1ChunkExtractions,
