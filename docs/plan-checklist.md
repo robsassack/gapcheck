@@ -249,7 +249,12 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Record the `<all_urls>` decision, `activeTab` alternative, and Store disclosure in [`permissions.md`](permissions.md)
 - [x] Prepare a production package that excludes development-only tests and documentation
 - [x] Validate manifest metadata, icons, versioning, and minimum Chrome requirements
-- [ ] Prepare the store description, screenshots, and required promotional assets
+- [x] Prepare the store description and screenshots; decide on optional promotional assets
+  - [x] Finalize and record the detailed store description
+  - [x] Prepare a current 1280×800 PDF-import screenshot
+  - [x] Recapture the 1280×800 analysis screenshot with the latest scoring behavior
+  - [x] Defer the 440×280 small promotional tile unless the live Dashboard requires it or post-release discovery work warrants it
+  - [x] Skip the optional 1400×560 marquee promotional image for the initial release
 - [ ] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis
   - [x] Draft and verify the public-facing privacy policy in [`../PRIVACY.md`](../PRIVACY.md)
   - [ ] Publish the policy at a stable public URL and complete the Store privacy questionnaire

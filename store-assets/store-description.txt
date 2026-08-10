@@ -1,0 +1,11 @@
+GapCheck compares the requirements in a job posting with a resume saved locally in Chrome. Select the relevant job-description text, open GapCheck’s side panel, and run an on-device analysis.
+
+Features:
+- Paste a resume or import a text-based PDF.
+- Review a match score and concise summary.
+- See covered requirements, partial matches, and gaps with supporting resume evidence.
+- Process your resume and selected job text locally using Chrome’s built-in AI.
+
+GapCheck does not automatically read entire webpages, monitor browsing activity, or send your resume and selected job text to the developer. Analysis is informational and does not guarantee hiring outcomes.
+
+Requires Chrome 138 or later on a supported desktop device. Chrome may download its built-in AI model the first time analysis runs.
