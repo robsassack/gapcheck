@@ -307,6 +307,13 @@ security policy. OCR remains explicitly out of scope.
 
 Prepare a production-only extension package, audit and explain its permissions, complete the store listing and privacy disclosures, and validate the complete first-install experience before submitting it to the Chrome Web Store.
 
+The optional post-release benchmark-calibration protocol is recorded in
+[`plan-checklist.md`](plan-checklist.md). It retains the complete one-repetition
+controlled baseline and offers a staged alternative to a multi-hour repeated
+matrix. The remaining repeated Pass 1 and pinned Pass 2 audits do not block the
+initial Store upload or submission; use them when preparing an accuracy update
+or investigating user feedback. Keep on-device model calls sequential.
+
 The production permission rationale, including the decision to retain
 `<all_urls>` instead of `activeTab` for the persistent side-panel workflow, is
 recorded in [`permissions.md`](permissions.md).

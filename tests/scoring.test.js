@@ -357,6 +357,22 @@ const sanitizedMarkerLeakExtraction =
     },
     labeledMarkerLeakJob
   );
+const employerGuidanceContextRequirements =
+  window.GapcheckNano.testHooks.consolidatePass1ChunkExtractions(
+    [
+      {
+        eligibilityRequirements: [],
+        responsibilities: [
+          {
+            requirement:
+              "Develop maintainable features with guidance from senior engineers",
+            qualifier: null,
+          },
+        ],
+      },
+    ],
+    "Copper Finch Labs is hiring a developer to deliver maintainable features with guidance from senior engineers."
+  );
 const separatelyGroupedImplicitItems =
   window.GapcheckNano.testHooks.mergeRelatedPass1RequirementsToLimit(
     [
@@ -403,6 +419,18 @@ const separatelyGroupedProseSentences =
       "Design multi-model infrastructure",
     ],
     proseSentenceJobText
+  );
+const restoredExposureSourceBullet =
+  window.GapcheckNano.testHooks.mergeRelatedPass1RequirementsToLimit(
+    [
+      "Exposure to GraphQL.",
+      "Exposure to Python.",
+      "Exposure to Terraform.",
+    ],
+    [
+      "Preferred Qualifications",
+      "- Exposure to GraphQL, Python, or Terraform.",
+    ].join("\n")
   );
 const lateLongInputRequirement =
   "Candidates must hold a commercial pilot license.";
@@ -524,6 +552,11 @@ const pass1GroupingResults = [
     ),
   },
   {
+    name: "employer-provided guidance is not scored as a candidate requirement",
+    expected: 0,
+    actual: employerGuidanceContextRequirements.length,
+  },
+  {
     name: "implicit source items consolidate fragments independently",
     expected: 4,
     actual: separatelyGroupedImplicitItems.length,
@@ -543,6 +576,11 @@ const pass1GroupingResults = [
       return /production applications/i.test(requirement) &&
         /stakeholder requirements/i.test(requirement);
     }),
+  },
+  {
+    name: "short fragments restore the exact explicit source bullet",
+    expected: "Exposure to GraphQL, Python, or Terraform.",
+    actual: restoredExposureSourceBullet.join("|"),
   },
   {
     name: "long posting fixture places an important requirement after character 6000",
@@ -629,6 +667,140 @@ const normalizedEvidenceFixture =
         requirement: "Work from the Bellwether City office two days per week",
         status: "partial",
         matchedBullets: [postgresEvidence],
+        severity: "medium",
+      },
+    ]
+  );
+const complementaryTechnicalEvidenceFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Develop and maintain REST APIs with Node.js and Express",
+      "Familiarity with HTTP APIs and relational databases",
+      "Familiarity with financial auditing and tax law",
+    ],
+    [postgresEvidence, testingEvidence],
+    [
+      {
+        requirement: "Develop and maintain REST APIs with Node.js and Express",
+        status: "partial",
+        matchedBullets: [postgresEvidence],
+        severity: "medium",
+      },
+      {
+        requirement: "Familiarity with HTTP APIs and relational databases",
+        status: "partial",
+        matchedBullets: [postgresEvidence, testingEvidence],
+        severity: "low",
+      },
+      {
+        requirement: "Familiarity with financial auditing and tax law",
+        status: "gap",
+        matchedBullets: [],
+        severity: "medium",
+      },
+    ]
+  );
+const reportedPartialApiEvidence =
+  "Added Node.js and Express endpoints for shipment exceptions and wrote PostgreSQL queries and migrations for the supporting data.";
+const reportedPartialGitEvidence =
+  "Worked in Git feature branches, opened pull requests, addressed teammate review comments, and reviewed small changes from two other junior developers.";
+const reportedPartialDiagnosisEvidence =
+  "Diagnosed a production filtering defect with browser network tools and service logs, then added a monitor for repeated API failures.";
+const reportedPartialProjectEvidence =
+  "Built and deployed a small GraphQL reading-list service in Python and used Terraform tutorials to provision its development resources.";
+const reportedPartialCorrectionFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Develop and maintain REST APIs with Node.js and Express.",
+      "Use Git branches and pull requests, participate in code review, and explain implementation choices.",
+      "Familiarity with HTTP APIs and relational databases.",
+      "Exposure to GraphQL.",
+      "Exposure to Python.",
+      "Exposure to Terraform.",
+    ],
+    [
+      reportedPartialApiEvidence,
+      reportedPartialGitEvidence,
+      reportedPartialDiagnosisEvidence,
+      reportedPartialProjectEvidence,
+    ],
+    [
+      {
+        requirement: "Develop and maintain REST APIs with Node.js and Express.",
+        status: "partial",
+        matchedBullets: [reportedPartialApiEvidence],
+        severity: "medium",
+      },
+      {
+        requirement: "Use Git branches and pull requests, participate in code review, and explain implementation choices.",
+        status: "partial",
+        matchedBullets: [reportedPartialGitEvidence],
+        severity: "low",
+      },
+      {
+        requirement: "Familiarity with HTTP APIs and relational databases.",
+        status: "partial",
+        matchedBullets: [
+          reportedPartialApiEvidence,
+          reportedPartialDiagnosisEvidence,
+        ],
+        severity: "low",
+      },
+      ...["GraphQL", "Python", "Terraform"].map((capability) => ({
+        requirement: `Exposure to ${capability}.`,
+        status: /** @type {const} */ ("partial"),
+        matchedBullets: [reportedPartialProjectEvidence],
+        severity: /** @type {const} */ ("medium"),
+      })),
+    ]
+  );
+const strongResumeSemanticCorrectionFixture =
+  window.GapcheckNano.testHooks.normalizePass2EvidenceForTesting(
+    [
+      "Use Git branches and pull requests, participate in code review, and explain implementation choices.",
+      "Investigate defects using browser tools, application logs, and monitoring signals.",
+      "Update technical documentation and communicate blockers to product and design partners.",
+      "Evidence of learning from feedback and collaborating with other developers.",
+    ],
+    [
+      "Worked in Git feature branches, opened pull requests, addressed teammate review comments, and reviewed small changes from two other junior developers.",
+      diagnosisEvidence,
+      "Documented API behavior and raised delivery blockers during planning with product and design teammates.",
+    ],
+    [
+      {
+        requirement:
+          "Use Git branches and pull requests, participate in code review, and explain implementation choices.",
+        status: "partial",
+        matchedBullets: [
+          "Worked in Git feature branches, opened pull requests, addressed teammate review comments, and reviewed small changes from two other junior developers.",
+        ],
+        severity: "medium",
+      },
+      {
+        requirement:
+          "Investigate defects using browser tools, application logs, and monitoring signals.",
+        status: "partial",
+        matchedBullets: [diagnosisEvidence],
+        severity: "medium",
+      },
+      {
+        requirement:
+          "Update technical documentation and communicate blockers to product and design partners.",
+        status: "partial",
+        matchedBullets: [
+          "Documented API behavior and raised delivery blockers during planning with product and design teammates.",
+        ],
+        severity: "medium",
+      },
+      {
+        requirement:
+          "Evidence of learning from feedback and collaborating with other developers.",
+        status: "partial",
+        matchedBullets: [
+          "Worked in Git feature branches, opened pull requests, addressed teammate review comments, and reviewed small changes from two other junior developers.",
+          "Documented API behavior and raised delivery blockers during planning with product and design teammates.",
+        ],
         severity: "medium",
       },
     ]
@@ -1131,6 +1303,94 @@ const evidenceResults = [
       "Model and query application data in PostgreSQL",
       ["Added Node.js and Express endpoints for shipment exceptions and wrote PostgreSQL queries and migrations for the supporting data."]
     ),
+  },
+  {
+    name: "reviewed concrete technology evidence can cover a semantically equivalent requirement",
+    expected: "covered|1",
+    actual:
+      `${complementaryTechnicalEvidenceFixture[0].status}|${
+        complementaryTechnicalEvidenceFixture[0].matchedBullets.length
+      }`,
+  },
+  {
+    name: "reviewed semantic evidence can cover a broader technical knowledge requirement",
+    expected: "covered|2",
+    actual:
+      `${complementaryTechnicalEvidenceFixture[1].status}|${
+        complementaryTechnicalEvidenceFixture[1].matchedBullets.length
+      }`,
+  },
+  {
+    name: "unrelated technical evidence does not automatically repair a broad knowledge gap",
+    expected: "gap|0",
+    actual:
+      `${complementaryTechnicalEvidenceFixture[2].status}|${
+        complementaryTechnicalEvidenceFixture[2].matchedBullets.length
+      }`,
+  },
+  {
+    name: "reported REST API partial is covered by implementation evidence",
+    expected: "covered|null",
+    actual:
+      `${reportedPartialCorrectionFixture[0].status}|${
+        reportedPartialCorrectionFixture[0].severity
+      }`,
+  },
+  {
+    name: "reported Git partial still requires explained implementation choices",
+    expected: "partial|low",
+    actual:
+      `${reportedPartialCorrectionFixture[1].status}|${
+        reportedPartialCorrectionFixture[1].severity
+      }`,
+  },
+  {
+    name: "reported HTTP and database familiarity partial is covered",
+    expected: "covered|null",
+    actual:
+      `${reportedPartialCorrectionFixture[2].status}|${
+        reportedPartialCorrectionFixture[2].severity
+      }`,
+  },
+  {
+    name: "reported exposure partials are covered by project evidence",
+    expected: "covered,covered,covered",
+    actual: reportedPartialCorrectionFixture
+      .slice(3)
+      .map((match) => match.status)
+      .join(","),
+  },
+  {
+    name: "missing decision explanation remains a low-severity partial",
+    expected: "partial|low",
+    actual:
+      `${strongResumeSemanticCorrectionFixture[0].status}|${
+        strongResumeSemanticCorrectionFixture[0].severity
+      }`,
+  },
+  {
+    name: "diagnosis tools logs and monitoring evidence is covered",
+    expected: "covered|null",
+    actual:
+      `${strongResumeSemanticCorrectionFixture[1].status}|${
+        strongResumeSemanticCorrectionFixture[1].severity
+      }`,
+  },
+  {
+    name: "documentation and blocker communication evidence is covered",
+    expected: "covered|null",
+    actual:
+      `${strongResumeSemanticCorrectionFixture[2].status}|${
+        strongResumeSemanticCorrectionFixture[2].severity
+      }`,
+  },
+  {
+    name: "acting on review feedback and reviewing peers is covered collaboration",
+    expected: "covered|null",
+    actual:
+      `${strongResumeSemanticCorrectionFixture[3].status}|${
+        strongResumeSemanticCorrectionFixture[3].severity
+      }`,
   },
   {
     name: "skills-only evidence cannot be promoted to covered experience",

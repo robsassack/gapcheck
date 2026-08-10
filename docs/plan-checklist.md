@@ -260,6 +260,39 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 ---
 
+## Phase 8.5 — Optional Post-Release Benchmark Calibration
+
+- [x] Record a one-repetition controlled-comparison baseline across all four benchmark families and all three resume cases
+  - [x] Confirm strong, medium, and clear-mismatch ordering is preserved
+  - [x] Confirm every analysis completes without a Pass 1 or Pass 2 runtime error
+  - [x] Record the observed Pass 1 omissions, requirement-limit warnings, score-range warnings, and analysis durations
+- [ ] Run **Pass 1 audit only** for all four benchmark families with three repetitions
+  - [ ] Compare each family’s extracted themes, grouping, omissions, and requirement-limit behavior across repetitions
+  - [ ] Treat a theme omitted in at least two of three repetitions as a systematic Pass 1 issue rather than ordinary model variation
+- [ ] Run **Pass 2 audit with pinned requirements** for three repetitions on the currently uncertain cases
+  - [ ] Junior Full-Stack / Strong
+  - [ ] Product Operations / Medium
+  - [ ] Confirm fixture-specific target ranges and important classifications hold without unsupported evidence or ordering reversals
+- [ ] Review the staged reports as post-release calibration evidence
+  - [ ] Accept the staged protocol when results are stable and no shared-pipeline regression is indicated
+  - [ ] Run a complete three-repetition controlled comparison only when targeted results are inconclusive, reveal cross-family risk, or follow another shared analysis-pipeline change
+  - [ ] Keep local Nano calls sequential; do not parallelize benchmark model sessions on the same device
+
+This phase is optional and does not block the initial Chrome Web Store upload or
+submission. The completed one-repetition controlled baseline, deterministic
+regression suite, successful browser rerun, and validated production package
+provide sufficient confidence for the initial release. Complete the remaining
+items when calibrating a post-release accuracy update or investigating user
+feedback.
+
+Expected additional runtime for the staged protocol is approximately 20 minutes
+on the current test machine: about 11–12 minutes for the repeated Pass 1 audit
+and 8–10 minutes for the two targeted pinned Pass 2 cases. This preserves
+model-call quality while avoiding a roughly one-hour full repeated matrix when
+the targeted results provide sufficient release confidence.
+
+---
+
 ## Phase 9 — Saved Analysis History
 
 - [ ] Define a versioned local analysis-record schema
