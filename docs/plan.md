@@ -318,9 +318,9 @@ The production permission rationale, including the decision to retain
 `<all_urls>` instead of `activeTab` for the persistent side-panel workflow, is
 recorded in [`permissions.md`](permissions.md).
 
-The verified user-facing privacy policy draft is maintained in
-[`../PRIVACY.md`](../PRIVACY.md). It must be published at a stable public URL
-before the Store privacy disclosures are completed.
+The verified user-facing privacy policy is maintained in
+[`../PRIVACY.md`](../PRIVACY.md), published from the public repository, and
+linked from the Chrome Web Store privacy disclosures.
 
 ### Phase 9 — Saved Analysis History
 

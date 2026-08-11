@@ -461,7 +461,7 @@ function classifyRequirementSourceType(requirement) {
  * @returns {ExtractedRequirement}
  */
 function createExtractedRequirement(requirement, category, qualifier) {
-  const text = requirement.trim();
+  const text = sanitizePass1RequirementText(requirement);
   /** @type {RequirementSourceType} */
   let sourceType;
 
@@ -905,6 +905,34 @@ function stripPass1SourceBulletLabels(text) {
 }
 
 /**
+ * Private source-boundary metadata must never reach requirement metadata,
+ * scoring, or user-facing summaries. Remove a leaked section heading only
+ * when it was attached to an internal marker so legitimate requirement text
+ * beginning with the same word remains unchanged.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function sanitizePass1RequirementText(text) {
+  const containsPrivateMarker =
+    /\[?\s*SOURCE\s+BULLET\s+J\d+\s*[-–—]\s*KEEP\s+AS\s+ONE\s+REQUIREMENT\s*\]?/i.test(
+      text
+    );
+  const withoutPrivateMarker = text.replace(
+    /\[?\s*SOURCE\s+BULLET\s+J\d+\s*[-–—]\s*KEEP\s+AS\s+ONE\s+REQUIREMENT\s*\]?\s*/gi,
+    ""
+  );
+  const withoutLeakedHeading = containsPrivateMarker
+    ? withoutPrivateMarker.replace(
+      /^\s*(?:(?:minimum|preferred|desired|basic|required|technical)\s+)?(?:qualifications|requirements|responsibilities)\s*:?\s*/i,
+      ""
+    )
+    : withoutPrivateMarker;
+
+  return withoutLeakedHeading.replace(/\s+/g, " ").trim();
+}
+
+/**
  * Recover exact source bullets when the model echoes private prompt metadata.
  * Using the source text also discards any heading or unrelated requirement the
  * model may have attached to the leaked label.
@@ -942,7 +970,7 @@ function sanitizePass1Extraction(extraction, labeledSourceText) {
         .filter(Boolean);
       const requirementTexts = recoveredSourceBullets.length > 0
         ? recoveredSourceBullets
-        : [stripPass1SourceBulletLabels(item.requirement)];
+        : [sanitizePass1RequirementText(item.requirement)];
 
       requirementTexts.forEach((requirementText) => {
         const normalizedText = requirementText.replace(/\s+/g, " ").trim();

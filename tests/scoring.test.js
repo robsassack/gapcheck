@@ -357,6 +357,12 @@ const sanitizedMarkerLeakExtraction =
     },
     labeledMarkerLeakJob
   );
+const sanitizedUnmappedMarkerRequirement =
+  window.GapcheckNano.testHooks.createExtractedRequirement(
+    "Qualifications [SOURCE BULLET J99 - KEEP AS ONE REQUIREMENT] At least one year of professional software-development experience.",
+    "eligibility",
+    "required"
+  );
 const employerGuidanceContextRequirements =
   window.GapcheckNano.testHooks.consolidatePass1ChunkExtractions(
     [
@@ -550,6 +556,12 @@ const pass1GroupingResults = [
         labeledMarkerLeakJob
       )
     ),
+  },
+  {
+    name: "unmapped source metadata and its attached heading cannot reach final requirements",
+    expected:
+      "At least one year of professional software-development experience.",
+    actual: sanitizedUnmappedMarkerRequirement.text,
   },
   {
     name: "employer-provided guidance is not scored as a candidate requirement",

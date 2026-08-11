@@ -255,9 +255,9 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
   - [x] Recapture the 1280×800 analysis screenshot with the latest scoring behavior
   - [x] Defer the 440×280 small promotional tile unless the live Dashboard requires it or post-release discovery work warrants it
   - [x] Skip the optional 1400×560 marquee promotional image for the initial release
-- [ ] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis
+- [x] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis
   - [x] Draft and verify the public-facing privacy policy in [`../PRIVACY.md`](../PRIVACY.md)
-  - [ ] Publish the policy at a stable public URL and complete the Store privacy questionnaire
+  - [x] Publish the policy at a stable public GitHub URL and complete the Store privacy questionnaire
 - [ ] Run a fresh-install smoke test, including first-time model download and PDF import
 - [ ] Test the packaged build on representative supported desktop environments
 - [ ] Upload the production package and resolve automated validation findings
