@@ -72,7 +72,10 @@ Extraction prioritizes candidate qualifications and work constraints before
 lower-priority responsibilities. Detected source bullets remain indivisible so
 tools, alternatives, audiences, and compound capabilities from one source item
 do not gain extra scoring weight merely because they could be split into
-several fragments.
+several fragments. The labels used to preserve those boundaries are private
+prompt metadata. Any leaked `SOURCE BULLET` marker or attached section-heading
+text is removed in application code before requirement metadata, scoring,
+summary generation, or rendering.
 
 ## Resume evidence analysis
 
@@ -119,9 +122,10 @@ runs.
 
 ## Known limitations
 
-- Gemini Nano can vary requirement wording, grouping, classification, summary,
-  and severity between runs. The same final `matches` array always produces the
-  same code-owned score, but the model-generated array can vary.
+- Gemini Nano can vary requirement wording, grouping, classification, and
+  severity between runs. The same final `matches` array always produces the
+  same code-owned score and summary, but the model-generated classifications
+  can vary.
 - Status-only scoring gives every scored item equal influence. Required
   qualifications, preferred qualifications, and responsibilities are not
   weighted differently.

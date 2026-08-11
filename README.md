@@ -1,8 +1,8 @@
 # GapCheck
 
-GapCheck is a Manifest V3 Chrome extension that compares a selected job posting against a saved resume using Chrome's built-in Gemini Nano model. It produces an on-device match score and organizes the posting's requirements into Covered, Partial, and Gaps sections with supporting resume evidence.
+GapCheck is a Manifest V3 Chrome extension that compares a selected job posting against a saved resume using Chrome's built-in Prompt API, powered by Gemini Nano. It produces an on-device match score and organizes the posting's requirements into Covered, Partial, and Gaps sections with supporting resume evidence.
 
-<img src="assets/screenshot.png" alt="GapCheck side panel showing an 85% match score and analysis summary" width="300">
+<img src="store-assets/screenshots/01-resume-analysis.png" alt="GapCheck analyzing a highlighted Junior Full-Stack Developer posting in Chrome and showing a 96% match in the side panel" width="900">
 
 ## Features
 
@@ -69,7 +69,7 @@ expected behavior, cancellation behavior, and report details.
 
 ## Built-In AI Requirement
 
-GapCheck uses Chrome's built-in Prompt API with Gemini Nano for local analysis. It requires Chrome 138 or later on a supported desktop device with the Prompt API available. The side panel checks model readiness, starts the model download from the Analyze action when needed, shows download and finalization progress, automatically rechecks temporary unavailability or active downloads, and provides an in-panel session retry.
+GapCheck uses Chrome's built-in Prompt API with Gemini Nano for local analysis. Chrome extensions can use the API in Chrome 138 or later on a [supported device](https://developer.chrome.com/docs/ai/prompt-api#hardware). The side panel checks model readiness, starts the model download from the Analyze action when needed, shows download and finalization progress, automatically rechecks temporary unavailability or active downloads, and provides an in-panel session retry.
 
 The initial model download can take time. If Chrome reports that the model is unavailable, follow the status shown in the side panel and confirm that the device and Chrome installation support the built-in Prompt API.
 
@@ -95,7 +95,7 @@ limitations established during Phase 6.
 
 ## Version
 
-Current release: **1.0.0**
+Current package version: **1.0.0**
 
 ## Third-Party Software
 

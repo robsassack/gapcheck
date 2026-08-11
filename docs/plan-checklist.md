@@ -1,6 +1,6 @@
-# Gapcheck — Development Checklist
+# GapCheck — Development Checklist
 
-A phase-by-phase build checklist derived from `gapcheck-plan.md`. Check items off as you go.
+A phase-by-phase build checklist derived from [`plan.md`](plan.md). Check items off as you go.
 
 ---
 
@@ -10,7 +10,7 @@ A phase-by-phase build checklist derived from `gapcheck-plan.md`. Check items of
 - [x] Side panel opens on toolbar icon click (`sidePanel.setPanelBehavior`)
 - [x] `LanguageModel.availability()` check with human-readable status + dot indicator in panel
 - [x] Options page: paste resume as plain text, saved as bullet array to `chrome.storage.local`
-- [x] "Capture selected text" grabs `window.getSelection()` from active tab and previews it
+- [x] "Analyze selected text" grabs `window.getSelection()` from the active tab, previews it, and starts analysis
 - [x] Storage change listener keeps panel's resume status in sync with options page
 
 ---
@@ -36,7 +36,7 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 ## Phase 2 — `nano.js` Pipeline
 
 - [x] Pass 1 (extraction)
-  - [x] Truncate captured job text to ≤ 6,000 chars
+  - [x] Initially truncate captured job text to ≤ 6,000 chars (superseded by Phase 6 bounded sectioning)
   - [x] Create fresh `LanguageModel` session with extraction system prompt
   - [x] Call `.prompt()` with `responseConstraint` set to the Pass 1 schema
   - [x] `JSON.parse` the result; sanity-check it's an array within the `maxItems` bound
@@ -84,13 +84,13 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 
 - [x] Test against a short, well-structured job posting (clean bullet-list requirements)
 - [x] Test against a long, prose-heavy job posting (requirements buried in paragraphs)
-- [x] Test against a posting near/over the 6,000-char truncation limit
+- [x] Test the original behavior against a posting near/over the 6,000-character limit (superseded by Phase 6 long-input tests)
 - [x] Test with a short resume (5–10 bullets)
 - [x] Test with a long resume (20–30 bullets) — check Pass 2 stays within Nano's token budget
 - [x] Test with a resume that has zero overlap with the posting (all gaps)
 - [x] Test with a resume that fully covers the posting (all covered)
 - [x] Re-run the same job + resume pair multiple times — check `matches[]` status classifications for run-to-run consistency (expected to vary somewhat on-device; confirm it's within a tolerable range)
-- [x] Test on each supported OS if possible (Windows, macOS, Linux), since the Prompt API is desktop-only
+- [x] Test on the available supported desktop environment
 
 ---
 
@@ -258,10 +258,11 @@ Pin these down on paper/in a schema file first — retrofitting after the pipeli
 - [x] Complete privacy disclosures for local resume storage, selected page text, and on-device analysis
   - [x] Draft and verify the public-facing privacy policy in [`../PRIVACY.md`](../PRIVACY.md)
   - [x] Publish the policy at a stable public GitHub URL and complete the Store privacy questionnaire
-- [ ] Run a fresh-install smoke test, including first-time model download and PDF import
-- [ ] Test the packaged build on representative supported desktop environments
-- [ ] Upload the production package and resolve automated validation findings
-- [ ] Submit for review and record the release process for future updates
+- [x] Run a fresh-install smoke test, including first-time model download and PDF import
+- [x] Test the packaged build on representative supported desktop environments
+- [x] Upload the production package and resolve automated validation findings
+- [x] Submit version 1.0.0 for Chrome Web Store review
+- [ ] Record the final approval and publishing outcome for future updates
 
 ---
 
